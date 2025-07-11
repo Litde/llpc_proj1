@@ -1,0 +1,1 @@
+MAPS_ROOT = "maps"
