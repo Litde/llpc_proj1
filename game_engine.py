@@ -5,51 +5,36 @@ import pygame
 
 class GameEngine:
     def __init__(self):
-        self.map_engine = None
-        self.camera = None
-        self.screen = None
-        self.clock = None
+        self.game_logic = GameLogic()
+        self.player = Player()
+        self.camera = Camera()
+        self.map_engine = MapEngine(self.player, self.camera)
+        
         self.initialized = False
-        self.player = None
 
-        self.reset()
 
-    def initialize_screen(self, width=800, height=600) -> None:
-        """Initializes the game screen with given dimensions."""
-        if self.initialized:
-            return
-        pygame.init()
-        self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Game Engine")
-        self.clock = pygame.time.Clock()
-        self.clock.tick(statics.FPS)
-
-    def initialize_map_engine(self, map_path=None) -> None:
-        """Initializes the map engine with an optional map path."""
-        if self.map_engine is not None:
-            return
-        self.camera = Camera(display_camera_location=False)
-        self.map_engine = MapEngine(self.screen, self.camera, self.player, game_engine_initalized=True, map_path=map_path)
+    def initialize(self):
+        self.map_engine.initialize()
+        self.player.reset()
+        self.camera.reset()
         self.initialized = True
 
-    def initialize_player(self, name="Player") -> None:
-        """Initializes the player with a given name."""
-        self.player = Player(name=name)
-        self.player.x = 0
-        self.player.y = 0
-        self.player.health = 100
-        self.player.inventory = []
+    def reset(self):
+        self.game_logic.reset()
+        self.map_engine.reset()
+        self.player.reset()
+        self.camera.reset()
+        self.initialized = False
+
+
+class GameLogic:
+    def __init__(self):
+        self.clock = pygame.time.Clock()
+        self.fps = statics.FPS
+        self.clock.tick(self.fps)
 
     def reset(self):
-        """Resets the game engine to its initial state."""
-        self.map_engine = None
-        self.camera = None
-        self.screen = None
-        self.clock = None
-        self.initialized = False
-        self.initialize_player()
-        self.initialize_screen()
-        self.initialize_map_engine()
+        self.clock = pygame.time.Clock()
 
 
 
@@ -66,11 +51,19 @@ class Player:
         self.x += dx
         self.y += dy
 
+    def reset(self):
+        """Resets the player position and health."""
+        self.x = 0
+        self.y = 0
+        self.health = 100
+        self.inventory.clear()
+
 
 class Camera:
     def __init__(self, display_camera_location=False):
         self.x = 0
         self.y = 0
+        self.display_camera_location = display_camera_location
 
     def move(self, dx, dy):
         """Moves the camera by dx and dy."""
@@ -84,19 +77,28 @@ class Camera:
 
 
 class MapEngine:
-    def __init__(self, screen, camera: Camera, player: Player, game_engine_initalized=False, map_path=None):
+    def __init__(self, player: Player, camera: Camera, map_path:str=None):
         self.map_data = self.load_map(map_path) if map_path else None
         self.seed = None
-        self.width = 20
-        self.height = 20
-        self.game_engine_initialized = game_engine_initalized
-        self.screen = screen
-        self.camera = camera
+        self.screen = None
         self.player = player
+        self.camera = camera
+
+        self.initialize()
+
+    def initialize(self, windows_size:tuple=(800, 600)):
+        self.screen = pygame.display.set_mode(windows_size)
+
+        self.game_engine_initialized = True
+
+    def reset(self):
+        self.map_data = None
+        self.seed = None
+        self.screen = None
+        self.game_engine_initialized = False
 
 
     def generate_seeded_map(self, seed=None, width=20, height=20):
-        """Generates a map based on a seeded random number generator."""
         if seed is not None:
             self.seed = seed
         if self.seed is not None:
@@ -145,11 +147,9 @@ class MapEngine:
         return terrain_map
 
     def generate_random_map(self, width=20, height=20):
-        """Generates a map based on a non-seeded random number generator."""
         return self.generate_seeded_map(seed=None, width=width, height=height)
 
     def save_map(self, name="random_map") -> None:
-        """Saves the current map to a specified file path."""
         with open(f"{statics.MAPS_ROOT}/{name}", 'w') as f:
             for row in self.map_data:
                 f.write(' '.join(str(tile) for tile in row) + '\n')
@@ -158,10 +158,6 @@ class MapEngine:
         """Loads a map from a specified file path."""
         pass
 
-    def get_tile_symbol(self, tile_type):
-        """Returns a symbol for display purposes."""
-        symbols = {0: '🌱', 1: '🌊', 2: '⛰️', 3: '🌲'}
-        return symbols.get(tile_type, '?')
 
     def display_map(self):
         if not self.game_engine_initialized:
@@ -214,9 +210,9 @@ class MapEngine:
         """Draws the player on the map."""
         if self.game_engine_initialized and self.player:
             player_color = (255, 0, 0)
-            player_size = 20
-            player_x = self.player.x * statics.TILE_SIZE - self.camera.x + statics.TILE_SIZE // 2
-            player_y = self.player.y * statics.TILE_SIZE - self.camera.y + statics.TILE_SIZE // 2
+            player_size = statics.PLAYER_SIZE
+            player_x = self.player.x * statics.TILE_SIZE
+            player_y = self.player.y * statics.TILE_SIZE
             pygame.draw.circle(self.screen, player_color, (int(player_x), int(player_y)), player_size)
 
 
@@ -232,7 +228,7 @@ class MapEngine:
 
         # Draw the map and player
         self.display_map()
-        self.draw_player()
+        # self.draw_player()
         pygame.display.flip()
 
 
