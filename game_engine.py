@@ -1,16 +1,23 @@
 import random
 import statics
 import pygame
+import pygame, os
+os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 
 class GameEngine:
     def __init__(self):
         self.game_logic = GameLogic()
         self.player = Player()
-        self.camera = Camera()
-        self.map_engine = MapEngine(self.player, self.camera)
+        self.camera = Camera(display_camera_location=True)
+        self.map_engine = MapEngine(self)
+
+        pygame.init()
+        pygame.display.set_caption("Game Engine Example")
         
         self.initialized = False
+
+        self.initialize()
 
 
     def initialize(self):
@@ -77,25 +84,27 @@ class Camera:
 
 
 class MapEngine:
-    def __init__(self, player: Player, camera: Camera, map_path:str=None):
+    def __init__(self, game_engine: GameEngine, map_path:str=None):
         self.map_data = self.load_map(map_path) if map_path else None
         self.seed = None
         self.screen = None
-        self.player = player
-        self.camera = camera
+        self.game_engine = game_engine
+        self.initialized = False
 
         self.initialize()
 
     def initialize(self, windows_size:tuple=(800, 600)):
         self.screen = pygame.display.set_mode(windows_size)
+        self.game_engine.player.x = self.screen.get_width() // 2
+        self.game_engine.player.y = self.screen.get_height() // 2
 
-        self.game_engine_initialized = True
+        self.initialized = True
 
     def reset(self):
         self.map_data = None
         self.seed = None
         self.screen = None
-        self.game_engine_initialized = False
+        self.initialized = False
 
 
     def generate_seeded_map(self, seed=None, width=20, height=20):
@@ -148,6 +157,18 @@ class MapEngine:
 
     def generate_random_map(self, width=20, height=20):
         return self.generate_seeded_map(seed=None, width=width, height=height)
+    
+    def generate_map_in_proportions_of_screen(self):
+        if not self.screen:
+            raise RuntimeError("Screen not initialized. Call initialize() first.")
+
+        screen_width, screen_height = self.screen.get_size()
+        tile_size = statics.TILE_SIZE
+
+        width = screen_width // tile_size
+        height = screen_height // tile_size
+
+        return self.generate_seeded_map(seed=None, width=width, height=height)
 
     def save_map(self, name="random_map") -> None:
         with open(f"{statics.MAPS_ROOT}/{name}", 'w') as f:
@@ -159,15 +180,9 @@ class MapEngine:
         pass
 
 
-    def display_map(self):
-        if not self.game_engine_initialized:
-            raise RuntimeError("Game engine not initialized.")
-
+    def draw_map(self):
         if self.map_data is None:
             raise ValueError("No map data available to display.")
-
-        # Clear screen using class field
-        self.screen.fill((0, 0, 0))  # Black background
 
         # Define colors for different tile types
         tile_colors = {
@@ -179,56 +194,53 @@ class MapEngine:
 
         # Calculate visible area using class fields
         screen_width, screen_height = self.screen.get_size()
-        tiles_x = screen_width // statics.TILE_SIZE + 2
-        tiles_y = screen_height // statics.TILE_SIZE + 2
+        camera_x = self.game_engine.camera.x
+        camera_y = self.game_engine.camera.y
+        tile_size = statics.TILE_SIZE
 
-        start_x = max(0, self.camera.x // statics.TILE_SIZE)
-        start_y = max(0, self.camera.y // statics.TILE_SIZE)
-        end_x = min(self.width, start_x + tiles_x)
-        end_y = min(self.height, start_y + tiles_y)
+        for y in range(len(self.map_data)):
+            for x in range(len(self.map_data[y])):
+                tile_type = self.map_data[y][x]
+                color = tile_colors.get(tile_type, (255, 255, 255))
 
-        # Draw tiles
-        for y in range(start_y, end_y):
-            for x in range(start_x, end_x):
-                if y < len(self.map_data) and x < len(self.map_data[y]):
-                    tile = self.map_data[y][x]
-                    color = tile_colors.get(tile, (255, 0, 255))  # Default magenta
+                screen_x = x * tile_size
+                screen_y = y * tile_size
 
-                    # Calculate screen position
-                    screen_x = x * statics.TILE_SIZE - self.camera.x
-                    screen_y = y * statics.TILE_SIZE - self.camera.y
-
-                    # Draw tile rectangle
-                    pygame.draw.rect(self.screen, color,
-                                     (screen_x, screen_y, statics.TILE_SIZE, statics.TILE_SIZE))
-
-                    # Draw border for better visibility
-                    # pygame.draw.rect(self.screen, (255, 255, 255),
-                    #                  (screen_x, screen_y, statics.TILE_SIZE, statics.TILE_SIZE), 1)
+                pygame.draw.rect(self.screen, color,
+                                 (screen_x, screen_y, tile_size, tile_size))
 
     def draw_player(self):
         """Draws the player on the map."""
-        if self.game_engine_initialized and self.player:
+        if self.game_engine.initialized and self.game_engine.player:
             player_color = (255, 0, 0)
             player_size = statics.PLAYER_SIZE
-            player_x = self.player.x * statics.TILE_SIZE
-            player_y = self.player.y * statics.TILE_SIZE
+            player_x = self.game_engine.player.x
+            player_y = self.game_engine.player.y
             pygame.draw.circle(self.screen, player_color, (int(player_x), int(player_y)), player_size)
+
+    def draw_camera(self):
+        """Draws the camera view on the map."""
+        if self.game_engine.initialized and self.game_engine.camera.display_camera_location:
+            camera_color = (255, 255, 0)
+            camera_rect = pygame.Rect(self.game_engine.camera.x, self.game_engine.camera.y,
+                                      self.screen.get_width(), self.screen.get_height())
+            pygame.draw.rect(self.screen, camera_color, camera_rect, 2)
 
 
     def update(self):
         """Updates the map engine state."""
-        if not self.game_engine_initialized:
+        if not self.initialized:
             raise RuntimeError("Game engine not initialized.")
 
         # Update camera position based on player position
-        if self.player:
-            self.camera.x = self.player.x * statics.TILE_SIZE - self.screen.get_width() // 2
-            self.camera.y = self.player.y * statics.TILE_SIZE - self.screen.get_height() // 2
+        if self.game_engine.player:
+            self.game_engine.camera.x = self.game_engine.player.x * statics.TILE_SIZE - self.screen.get_width() // 2
+            self.game_engine.camera.y = self.game_engine.player.y * statics.TILE_SIZE - self.screen.get_height() // 2
 
         # Draw the map and player
-        self.display_map()
-        # self.draw_player()
+        self.draw_map()
+        self.draw_player()
+        self.draw_camera()
         pygame.display.flip()
 
 
@@ -237,4 +249,7 @@ class MapEngine:
         """Prints the generated map to console."""
         if self.map_data:
             for row in self.map_data:
-                print(''.join(self.get_tile_symbol(tile) for tile in row))
+                row_str = ' '.join(str(tile) for tile in row)
+                print(row_str)
+        else:
+            print("No map data available to print.")

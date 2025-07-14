@@ -6,13 +6,14 @@ def main():
     game_engine = GameEngine()
 
     game_engine.initialize()
+    game_engine.map_engine.initialize(windows_size=(1920, 1080))
 
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
 
-    game_engine.map_engine.generate_random_map()
+    game_engine.map_engine.generate_map_in_proportions_of_screen()
 
-    
+    # game_engine.map_engine.print_map()
 
     running = True
     while running:
@@ -23,7 +24,7 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
 
-        game_engine.map_engine.display_map()
+        game_engine.map_engine.update()
 
 
     pygame.quit()
