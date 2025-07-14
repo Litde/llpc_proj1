@@ -1,4 +1,5 @@
 import pygame
+import statics
 from game_engine import GameEngine
 
 
@@ -23,6 +24,14 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                elif event.key == pygame.K_LEFT:
+                    game_engine.player.move(-statics.TILE_SIZE, 0)
+                elif event.key == pygame.K_RIGHT:
+                    game_engine.player.move(statics.TILE_SIZE, 0)
+                elif event.key == pygame.K_UP:
+                    game_engine.player.move(0, -statics.TILE_SIZE)
+                elif event.key == pygame.K_DOWN:
+                    game_engine.player.move(0, statics.TILE_SIZE)
 
         game_engine.map_engine.update()
 
