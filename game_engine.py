@@ -2,16 +2,11 @@ import random
 import statics
 import pygame
 import pygame, os
-import enum
+from interfaces import AttackDirection, EntityType, Entity
+
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 
-class AttackDirection(enum.Enum):
-    UP = 1
-    DOWN = 2
-    LEFT = 3
-    RIGHT = 4
-    NONE = 5
 
 
 
@@ -36,6 +31,7 @@ class GameEngine:
         self.player.reset()
         self.camera.reset()
         self.map_engine.initialize()
+        self.game_logic.add_entities([self.player])
         self.initialized = True
 
     def reset(self):
@@ -47,14 +43,27 @@ class GameEngine:
 
 
 class GameLogic:
-
     def __init__(self):
         self.clock = pygame.time.Clock()
         self.fps = statics.FPS
         self.clock.tick(self.fps)
+        self.entities = []
+
+    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE):
+        """Creates a new entity with the given parameters."""
+        entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size)
+        self.entities.append(entity)
+        return entity
+
+    def add_entities(self, entities):
+        """Populates the game with entities."""
+        self.entities.extend(entities)
 
     def reset(self):
         self.clock = pygame.time.Clock()
+        self.fps = statics.FPS
+        self.clock.tick(self.fps)
+        self.entities.clear()
 
 
 class MapEngine:
@@ -172,7 +181,6 @@ class MapEngine:
         except Exception as e:
             raise RuntimeError(f"Error loading map: {e}")
 
-
     def draw_map(self):
         if self.map_data is None:
             raise ValueError("No map data available to display.")
@@ -216,7 +224,7 @@ class MapEngine:
                 pygame.draw.rect(self.screen, color,
                                  (screen_x, screen_y, tile_size, tile_size))
 
-    def draw_player(self):
+    # def draw_player(self):
         """Draws the player on the map."""
         if self.game_engine.initialized and self.game_engine.player:
             player_color = statics.PLAYER_COLOR
@@ -317,6 +325,11 @@ class MapEngine:
                                   screen_center_y - attack_thickness // 2,
                                   attack_range, attack_thickness))  
 
+    def draw_entities(self):
+        """Draws all entities on the map."""
+        for entity in self.game_engine.game_logic.entities:
+            entity.draw(self.screen, self.game_engine.camera)
+
     def update(self, attack_direction: AttackDirection = None):
         """Updates the map engine state."""
         if not self.initialized:
@@ -340,7 +353,8 @@ class MapEngine:
 
         self.draw_map()
         self.draw_game_starting_position()
-        self.draw_player()
+        # self.draw_player()
+        self.draw_entities()
         self.draw_camera()
         
         # Draw attack if timer is active
@@ -362,12 +376,10 @@ class MapEngine:
 
 
 
-class Player:
-    def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player"):
+class Player(Entity):
+    def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player", size=statics.PLAYER_SIZE):
+        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
-        self.name = name
-        self.x, self.y = starting_pos
-        self.health = 100
         self.inventory = []
 
     def move(self, dx, dy):

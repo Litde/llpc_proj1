@@ -1,6 +1,7 @@
 import pygame
 import statics
 from game_engine import GameEngine, AttackDirection
+from interfaces import EntityType
 
 
 def main():
@@ -8,6 +9,9 @@ def main():
 
     game_engine.initialize()
     game_engine.map_engine.initialize(windows_size=(1920, 1080))
+
+    for i in range(10):
+        game_engine.game_logic.create_entity(name=f"Enemy {i}", entity_type=EntityType.ITEM, starting_pos=(100 + i * 50, 100 + i * 50), size=statics.COIN_SIZE)
 
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
