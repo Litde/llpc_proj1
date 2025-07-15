@@ -8,9 +8,11 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 class GameEngine:
     def __init__(self):
         self.game_logic = GameLogic()
-        self.player = Player()
+        self.player = Player(self)
         self.camera = Camera(display_camera_location=True)
         self.map_engine = MapEngine(self)
+        
+        
 
         pygame.init()
         pygame.display.set_caption("Game Engine Example")
@@ -21,9 +23,9 @@ class GameEngine:
 
 
     def initialize(self):
-        self.map_engine.initialize()
         self.player.reset()
         self.camera.reset()
+        self.map_engine.initialize()
         self.initialized = True
 
     def reset(self):
@@ -35,6 +37,7 @@ class GameEngine:
 
 
 class GameLogic:
+
     def __init__(self):
         self.clock = pygame.time.Clock()
         self.fps = statics.FPS
@@ -42,45 +45,6 @@ class GameLogic:
 
     def reset(self):
         self.clock = pygame.time.Clock()
-
-
-
-class Player:
-    def __init__(self, name="Player"):
-        self.name = name
-        self.x = 0
-        self.y = 0
-        self.health = 100
-        self.inventory = []
-
-    def move(self, dx, dy):
-        """Moves the player by dx and dy."""
-        self.x += dx
-        self.y += dy
-
-    def reset(self):
-        """Resets the player position and health."""
-        self.x = 0
-        self.y = 0
-        self.health = 100
-        self.inventory.clear()
-
-
-class Camera:
-    def __init__(self, display_camera_location=False):
-        self.x = 0
-        self.y = 0
-        self.display_camera_location = display_camera_location
-
-    def move(self, dx, dy):
-        """Moves the camera by dx and dy."""
-        self.x += dx
-        self.y += dy
-
-    def reset(self):
-        """Resets the camera position to the top-left corner."""
-        self.x = 0
-        self.y = 0
 
 
 class MapEngine:
@@ -159,7 +123,7 @@ class MapEngine:
         return self.generate_seeded_map(seed=None, width=width, height=height)
     
     def generate_map_in_proportions_of_screen(self):
-        if not self.screen:
+        if not self.initialized:
             raise RuntimeError("Screen not initialized. Call initialize() first.")
 
         screen_width, screen_height = self.screen.get_size()
@@ -184,7 +148,6 @@ class MapEngine:
         if self.map_data is None:
             raise ValueError("No map data available to display.")
 
-        # Define colors for different tile types
         tile_colors = {
             0: (50, 150, 50),  # grass - green
             1: (50, 50, 150),  # water - blue
@@ -192,10 +155,6 @@ class MapEngine:
             3: (0, 100, 0)  # forest - dark green
         }
 
-        # Calculate visible area using class fields
-        screen_width, screen_height = self.screen.get_size()
-        camera_x = self.game_engine.camera.x
-        camera_y = self.game_engine.camera.y
         tile_size = statics.TILE_SIZE
 
         for y in range(len(self.map_data)):
@@ -232,12 +191,10 @@ class MapEngine:
         if not self.initialized:
             raise RuntimeError("Game engine not initialized.")
 
-        # Update camera position based on player position
         if self.game_engine.player:
             self.game_engine.camera.x = self.game_engine.player.x * statics.TILE_SIZE - self.screen.get_width() // 2
             self.game_engine.camera.y = self.game_engine.player.y * statics.TILE_SIZE - self.screen.get_height() // 2
 
-        # Draw the map and player
         self.draw_map()
         self.draw_player()
         self.draw_camera()
@@ -253,3 +210,60 @@ class MapEngine:
                 print(row_str)
         else:
             print("No map data available to print.")
+
+
+
+class Player:
+    def __init__(self, game_engine:GameEngine, name="Player"):
+        self.game_engine = game_engine
+        self.name = name
+        self.x = 0
+        self.y = 0
+        self.health = 100
+        self.inventory = []
+
+    def move(self, dx, dy):
+        """Moves the player by dx and dy."""
+
+        if self.x + dx < 0 or self.x + dx >= statics.MAP_WIDTH * statics.TILE_SIZE:
+            return
+        if self.y + dy < 0 or self.y + dy >= statics.MAP_HEIGHT * statics.TILE_SIZE:
+            return
+
+        if self.game_engine.map_engine.map_data:
+            tile_x = (self.x + dx) // statics.TILE_SIZE
+            tile_y = (self.y + dy) // statics.TILE_SIZE
+
+            if 0 <= tile_x < len(self.game_engine.map_engine.map_data[0]) and 0 <= tile_y < len(self.game_engine.map_engine.map_data):
+                tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
+                if tile_type == 1:  # water
+                    return
+
+        self.x += dx
+        self.y += dy
+
+    def reset(self):
+        """Resets the player position and health."""
+        self.x = 0
+        self.y = 0
+        self.health = 100
+        self.inventory.clear()
+
+
+class Camera:
+    def __init__(self, display_camera_location=False):
+        self.x = 0
+        self.y = 0
+        self.display_camera_location = display_camera_location
+
+    def move(self, dx, dy):
+        """Moves the camera by dx and dy."""
+        self.x += dx
+        self.y += dy
+
+    def reset(self):
+        """Resets the camera position to the top-left corner."""
+        self.x = 0
+        self.y = 0
+
+
