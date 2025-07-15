@@ -21,28 +21,32 @@ def main():
     running = True
     while running:
         attack = AttackDirection.NONE
+        keys = pygame.key.get_pressed()  # Get all currently pressed keys
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_RIGHT:
+                # Z + Arrow keys for double speed movement
+                elif keys[pygame.K_z] and event.key == pygame.K_RIGHT:
                     game_engine.player.move(statics.PLAYER_SPEED * 2, 0)
-                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_LEFT:
+                elif keys[pygame.K_z] and event.key == pygame.K_LEFT:
                     game_engine.player.move(-statics.PLAYER_SPEED * 2, 0)
-                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_UP:
+                elif keys[pygame.K_z] and event.key == pygame.K_UP:
                     game_engine.player.move(0, -statics.PLAYER_SPEED * 2)
-                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_DOWN:
+                elif keys[pygame.K_z] and event.key == pygame.K_DOWN:
                     game_engine.player.move(0, statics.PLAYER_SPEED * 2)
-                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_RIGHT:
-                #     attack = AttackDirection.RIGHT
-                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_LEFT:
-                #     attack = AttackDirection.LEFT
-                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_UP:
-                #     attack = AttackDirection.UP
-                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_DOWN:
-                #     attack = AttackDirection.DOWN
+                # X + Arrow keys for attacks
+                elif keys[pygame.K_x] and event.key == pygame.K_RIGHT:
+                    attack = AttackDirection.RIGHT
+                elif keys[pygame.K_x] and event.key == pygame.K_LEFT:
+                    attack = AttackDirection.LEFT
+                elif keys[pygame.K_x] and event.key == pygame.K_UP:
+                    attack = AttackDirection.UP
+                elif keys[pygame.K_x] and event.key == pygame.K_DOWN:
+                    attack = AttackDirection.DOWN
                 elif event.key == pygame.K_LEFT:
                     game_engine.player.move(-statics.PLAYER_SPEED, 0)
                 elif event.key == pygame.K_RIGHT:
@@ -55,7 +59,6 @@ def main():
                     game_engine.player.reset()
 
         game_engine.map_engine.update(attack_direction=attack)
-        attack = AttackDirection.NONE
 
 
     pygame.quit()

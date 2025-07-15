@@ -64,6 +64,10 @@ class MapEngine:
         self.screen = None
         self.game_engine = game_engine
         self.initialized = False
+        
+        # Attack timer system
+        self.attack_timer = 0
+        self.current_attack_direction = AttackDirection.NONE
 
         self.initialize()
 
@@ -83,6 +87,8 @@ class MapEngine:
         self.seed = None
         self.screen = None
         self.initialized = False
+        self.attack_timer = 0
+        self.current_attack_direction = AttackDirection.NONE
 
 
     def generate_seeded_map(self, seed=None, width=20, height=20):
@@ -274,32 +280,58 @@ class MapEngine:
         """Draws the attack area around the player."""
         if self.game_engine.initialized and self.game_engine.player:
             attack_color = statics.ATTACK_COLOR
-            attack_radius = statics.PLAYER_ATTACK_RADIUS
+            attack_range = statics.PLAYER_ATTACK_RADIUS
+            tile_size = statics.TILE_SIZE
+            attack_thickness = 8  # Thickness of the attack rectangle
+            
+            # Calculate which tile the player is currently in (same as draw_player)
+            tile_x = self.game_engine.player.x // tile_size
+            tile_y = self.game_engine.player.y // tile_size
+            
+            # Calculate the center of that tile in world coordinates
+            tile_center_x = tile_x * tile_size + tile_size // 2
+            tile_center_y = tile_y * tile_size + tile_size // 2
+            
+            # Calculate screen position relative to camera
+            screen_center_x = tile_center_x - self.game_engine.camera.x
+            screen_center_y = tile_center_y - self.game_engine.camera.y
+            
             if attack_direction == AttackDirection.UP:
                 pygame.draw.rect(self.screen, attack_color,
-                                 (self.game_engine.player.x - attack_radius,
-                                  self.game_engine.player.y - attack_radius,
-                                  attack_radius, attack_radius))
+                                 (screen_center_x - attack_thickness // 2,
+                                  screen_center_y - attack_range,
+                                  attack_thickness, attack_range))
             elif attack_direction == AttackDirection.DOWN:
                 pygame.draw.rect(self.screen, attack_color,
-                                 (self.game_engine.player.x - attack_radius,
-                                  self.game_engine.player.y + attack_radius,
-                                  attack_radius, attack_radius))
+                                 (screen_center_x - attack_thickness // 2,
+                                  screen_center_y,
+                                  attack_thickness, attack_range))
             elif attack_direction == AttackDirection.LEFT:
                 pygame.draw.rect(self.screen, attack_color,
-                                 (self.game_engine.player.x - attack_radius,
-                                  self.game_engine.player.y - attack_radius,
-                                  attack_radius, attack_radius))
+                                 (screen_center_x - attack_range,
+                                  screen_center_y - attack_thickness // 2,
+                                  attack_range, attack_thickness))
             elif attack_direction == AttackDirection.RIGHT:
                 pygame.draw.rect(self.screen, attack_color,
-                                 (self.game_engine.player.x + attack_radius,
-                                  self.game_engine.player.y - attack_radius,
-                                  attack_radius, attack_radius))  
+                                 (screen_center_x,
+                                  screen_center_y - attack_thickness // 2,
+                                  attack_range, attack_thickness))  
 
     def update(self, attack_direction: AttackDirection = None):
         """Updates the map engine state."""
         if not self.initialized:
             raise RuntimeError("Game engine not initialized.")
+
+        # Handle attack input and timer
+        if attack_direction is not None and attack_direction != AttackDirection.NONE:
+            self.current_attack_direction = attack_direction
+            self.attack_timer = statics.ATTACK_DURATION_FRAMES
+        
+        # Update attack timer
+        if self.attack_timer > 0:
+            self.attack_timer -= 1
+            if self.attack_timer <= 0:
+                self.current_attack_direction = AttackDirection.NONE
 
         if self.game_engine.player:
             # Center camera on player (player position is already in pixels)
@@ -310,8 +342,11 @@ class MapEngine:
         self.draw_game_starting_position()
         self.draw_player()
         self.draw_camera()
-        if attack_direction != AttackDirection.NONE:
-            self.draw_attack(attack_direction)
+        
+        # Draw attack if timer is active
+        if self.attack_timer > 0:
+            self.draw_attack(self.current_attack_direction)
+            
         pygame.display.flip()
 
 
