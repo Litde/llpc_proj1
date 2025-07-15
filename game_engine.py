@@ -2,7 +2,17 @@ import random
 import statics
 import pygame
 import pygame, os
+import enum
 os.environ['SDL_VIDEO_CENTERED'] = '1'
+
+
+class AttackDirection(enum.Enum):
+    UP = 1
+    DOWN = 2
+    LEFT = 3
+    RIGHT = 4
+    NONE = 5
+
 
 
 class GameEngine:
@@ -260,7 +270,33 @@ class MapEngine:
             starting_rect = pygame.Rect(draw_x, draw_y, player_size, player_size)
             pygame.draw.rect(self.screen, starting_color, starting_rect)
 
-    def update(self):
+    def draw_attack(self, attack_direction):
+        """Draws the attack area around the player."""
+        if self.game_engine.initialized and self.game_engine.player:
+            attack_color = statics.ATTACK_COLOR
+            attack_radius = statics.PLAYER_ATTACK_RADIUS
+            if attack_direction == AttackDirection.UP:
+                pygame.draw.rect(self.screen, attack_color,
+                                 (self.game_engine.player.x - attack_radius,
+                                  self.game_engine.player.y - attack_radius,
+                                  attack_radius, attack_radius))
+            elif attack_direction == AttackDirection.DOWN:
+                pygame.draw.rect(self.screen, attack_color,
+                                 (self.game_engine.player.x - attack_radius,
+                                  self.game_engine.player.y + attack_radius,
+                                  attack_radius, attack_radius))
+            elif attack_direction == AttackDirection.LEFT:
+                pygame.draw.rect(self.screen, attack_color,
+                                 (self.game_engine.player.x - attack_radius,
+                                  self.game_engine.player.y - attack_radius,
+                                  attack_radius, attack_radius))
+            elif attack_direction == AttackDirection.RIGHT:
+                pygame.draw.rect(self.screen, attack_color,
+                                 (self.game_engine.player.x + attack_radius,
+                                  self.game_engine.player.y - attack_radius,
+                                  attack_radius, attack_radius))  
+
+    def update(self, attack_direction: AttackDirection = None):
         """Updates the map engine state."""
         if not self.initialized:
             raise RuntimeError("Game engine not initialized.")
@@ -274,6 +310,8 @@ class MapEngine:
         self.draw_game_starting_position()
         self.draw_player()
         self.draw_camera()
+        if attack_direction != AttackDirection.NONE:
+            self.draw_attack(attack_direction)
         pygame.display.flip()
 
 

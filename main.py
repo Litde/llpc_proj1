@@ -1,6 +1,6 @@
 import pygame
 import statics
-from game_engine import GameEngine
+from game_engine import GameEngine, AttackDirection
 
 
 def main():
@@ -20,6 +20,7 @@ def main():
 
     running = True
     while running:
+        attack = AttackDirection.NONE
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -34,6 +35,14 @@ def main():
                     game_engine.player.move(0, -statics.PLAYER_SPEED * 2)
                 elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_DOWN:
                     game_engine.player.move(0, statics.PLAYER_SPEED * 2)
+                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_RIGHT:
+                #     attack = AttackDirection.RIGHT
+                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_LEFT:
+                #     attack = AttackDirection.LEFT
+                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_UP:
+                #     attack = AttackDirection.UP
+                # elif (event.mod & pygame.K_TAB) and event.key == pygame.K_DOWN:
+                #     attack = AttackDirection.DOWN
                 elif event.key == pygame.K_LEFT:
                     game_engine.player.move(-statics.PLAYER_SPEED, 0)
                 elif event.key == pygame.K_RIGHT:
@@ -45,7 +54,8 @@ def main():
                 elif event.key == pygame.K_r:
                     game_engine.player.reset()
 
-        game_engine.map_engine.update()
+        game_engine.map_engine.update(attack_direction=attack)
+        attack = AttackDirection.NONE
 
 
     pygame.quit()
