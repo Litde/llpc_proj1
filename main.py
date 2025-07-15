@@ -26,6 +26,14 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_RIGHT:
+                    game_engine.player.move(statics.PLAYER_SPEED * 2, 0)
+                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_LEFT:
+                    game_engine.player.move(-statics.PLAYER_SPEED * 2, 0)
+                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_UP:
+                    game_engine.player.move(0, -statics.PLAYER_SPEED * 2)
+                elif (event.mod & pygame.KMOD_SHIFT) and event.key == pygame.K_DOWN:
+                    game_engine.player.move(0, statics.PLAYER_SPEED * 2)
                 elif event.key == pygame.K_LEFT:
                     game_engine.player.move(-statics.PLAYER_SPEED, 0)
                 elif event.key == pygame.K_RIGHT:
@@ -34,6 +42,8 @@ def main():
                     game_engine.player.move(0, -statics.PLAYER_SPEED)
                 elif event.key == pygame.K_DOWN:
                     game_engine.player.move(0, statics.PLAYER_SPEED)
+                elif event.key == pygame.K_r:
+                    game_engine.player.reset()
 
         game_engine.map_engine.update()
 

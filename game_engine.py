@@ -9,7 +9,7 @@ class GameEngine:
     def __init__(self):
         self.game_logic = GameLogic()
         self.player = Player(self)
-        self.camera = Camera(display_camera_location=True)
+        self.camera = Camera()
         self.map_engine = MapEngine(self)
         
         
@@ -59,8 +59,12 @@ class MapEngine:
 
     def initialize(self, windows_size:tuple=(800, 600)):
         self.screen = pygame.display.set_mode(windows_size)
-        self.game_engine.player.x = self.screen.get_width() // 2
-        self.game_engine.player.y = self.screen.get_height() // 2
+        # Set player position to the center of the starting tile
+        tile_size = statics.TILE_SIZE
+        start_x = statics.PLAYER_STARTING_POSITION[0] + tile_size // 2
+        start_y = statics.PLAYER_STARTING_POSITION[1] + tile_size // 2
+        self.game_engine.player.x = start_x
+        self.game_engine.player.y = start_y
 
         self.initialized = True
 
@@ -171,44 +175,90 @@ class MapEngine:
         camera_x = self.game_engine.camera.x
         camera_y = self.game_engine.camera.y
         
-        # Calculate which tiles are visible on screen
-        start_tile_x = max(0, camera_x // tile_size)
-        start_tile_y = max(0, camera_y // tile_size)
-        end_tile_x = min(len(self.map_data[0]), (camera_x + screen_width) // tile_size + 1)
-        end_tile_y = min(len(self.map_data), (camera_y + screen_height) // tile_size + 1)
+        # Calculate which tiles need to be drawn on screen (including beyond map boundaries)
+        start_tile_x = camera_x // tile_size
+        start_tile_y = camera_y // tile_size
+        end_tile_x = (camera_x + screen_width) // tile_size + 1
+        end_tile_y = (camera_y + screen_height) // tile_size + 1
 
-        # Only draw visible tiles
+        # Draw all visible tiles (including black squares beyond map boundaries)
         for y in range(start_tile_y, end_tile_y):
             for x in range(start_tile_x, end_tile_x):
-                if y < len(self.map_data) and x < len(self.map_data[y]):
+                # Check if tile is within map boundaries
+                if (0 <= y < len(self.map_data) and 0 <= x < len(self.map_data[0])):
+                    # Draw map tile
                     tile_type = self.map_data[y][x]
                     color = tile_colors.get(tile_type, (255, 255, 255))
+                else:
+                    # Draw black square beyond map boundaries
+                    color = (0, 0, 0)
 
-                    # Calculate screen position relative to camera
-                    screen_x = x * tile_size - camera_x
-                    screen_y = y * tile_size - camera_y
+                # Calculate screen position relative to camera
+                screen_x = x * tile_size - camera_x
+                screen_y = y * tile_size - camera_y
 
-                    pygame.draw.rect(self.screen, color,
-                                     (screen_x, screen_y, tile_size, tile_size))
+                pygame.draw.rect(self.screen, color,
+                                 (screen_x, screen_y, tile_size, tile_size))
 
     def draw_player(self):
         """Draws the player on the map."""
         if self.game_engine.initialized and self.game_engine.player:
             player_color = statics.PLAYER_COLOR
             player_size = statics.PLAYER_SIZE
-            player_x = self.game_engine.player.x
-            player_y = self.game_engine.player.y
+            tile_size = statics.TILE_SIZE
+            
+            # Calculate which tile the player is currently in
+            tile_x = self.game_engine.player.x // tile_size
+            tile_y = self.game_engine.player.y // tile_size
+            
+            # Calculate the center of that tile in world coordinates
+            tile_center_x = tile_x * tile_size + tile_size // 2
+            tile_center_y = tile_y * tile_size + tile_size // 2
+            
+            # Calculate screen position relative to camera
+            screen_center_x = tile_center_x - self.game_engine.camera.x
+            screen_center_y = tile_center_y - self.game_engine.camera.y
+            
+            # Draw player centered at the tile center
+            draw_x = screen_center_x - player_size // 2
+            draw_y = screen_center_y - player_size // 2
+            
             pygame.draw.rect(self.screen, player_color,
-                             (player_x, player_y, player_size, player_size))
+                             (draw_x, draw_y, player_size, player_size))
 
     def draw_camera(self):
         """Draws the camera view on the map."""
         if self.game_engine.initialized and self.game_engine.camera.display_camera_location:
             camera_color = (255, 255, 0)
-            camera_rect = pygame.Rect(self.game_engine.camera.x, self.game_engine.camera.y,
-                                      self.screen.get_width(), self.screen.get_height())
-            pygame.draw.rect(self.screen, camera_color, camera_rect, 2)
+            # Draw camera border around the screen edges to show the viewport
+            pygame.draw.rect(self.screen, camera_color, 
+                           (0, 0, self.screen.get_width(), self.screen.get_height()), 2)
 
+    def draw_game_starting_position(self):
+        """Draws the game starting position on the map."""
+        if self.game_engine.initialized and self.game_engine.player:
+            starting_color = (255, 255, 0)
+            tile_size = statics.TILE_SIZE
+            player_size = statics.PLAYER_SIZE
+            
+            # Calculate which tile the starting position is in (same logic as draw_player)
+            tile_x = statics.PLAYER_STARTING_POSITION[0] // tile_size
+            tile_y = statics.PLAYER_STARTING_POSITION[1] // tile_size
+            
+            # Calculate the center of that tile in world coordinates
+            tile_center_x = tile_x * tile_size + tile_size // 2
+            tile_center_y = tile_y * tile_size + tile_size // 2
+            
+            # Calculate screen position relative to camera
+            screen_center_x = tile_center_x - self.game_engine.camera.x
+            screen_center_y = tile_center_y - self.game_engine.camera.y
+            
+            # Draw starting position centered at the tile center
+            draw_x = screen_center_x - player_size // 2
+            draw_y = screen_center_y - player_size // 2
+            
+            starting_rect = pygame.Rect(draw_x, draw_y, player_size, player_size)
+            pygame.draw.rect(self.screen, starting_color, starting_rect)
 
     def update(self):
         """Updates the map engine state."""
@@ -216,10 +266,12 @@ class MapEngine:
             raise RuntimeError("Game engine not initialized.")
 
         if self.game_engine.player:
-            self.game_engine.camera.x = self.game_engine.player.x * statics.TILE_SIZE - self.screen.get_width() // 2
-            self.game_engine.camera.y = self.game_engine.player.y * statics.TILE_SIZE - self.screen.get_height() // 2
+            # Center camera on player (player position is already in pixels)
+            self.game_engine.camera.x = self.game_engine.player.x - self.screen.get_width() // 2
+            self.game_engine.camera.y = self.game_engine.player.y - self.screen.get_height() // 2
 
         self.draw_map()
+        self.draw_game_starting_position()
         self.draw_player()
         self.draw_camera()
         pygame.display.flip()
@@ -238,40 +290,46 @@ class MapEngine:
 
 
 class Player:
-    def __init__(self, game_engine:GameEngine, name="Player"):
+    def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player"):
         self.game_engine = game_engine
         self.name = name
-        self.x = 0
-        self.y = 0
+        self.x, self.y = starting_pos
         self.health = 100
         self.inventory = []
 
     def move(self, dx, dy):
         """Moves the player by dx and dy."""
+        tile_size = statics.TILE_SIZE
+        
+        # Calculate new position
+        new_x = self.x + dx
+        new_y = self.y + dy
 
-        if self.x + dx < 0 or self.x + dx >= statics.MAP_WIDTH * statics.TILE_SIZE:
+        # Check map boundaries (considering player is positioned at tile centers)
+        if new_x - tile_size // 2 < 0 or new_x + tile_size // 2 >= statics.MAP_WIDTH * tile_size:
             return
-        if self.y + dy < 0 or self.y + dy >= statics.MAP_HEIGHT * statics.TILE_SIZE:
+        if new_y - tile_size // 2 < 0 or new_y + tile_size // 2 >= statics.MAP_HEIGHT * tile_size:
             return
 
         if self.game_engine.map_engine.map_data:
-            tile_x = (self.x + dx) // statics.TILE_SIZE
-            tile_y = (self.y + dy) // statics.TILE_SIZE
+            # Calculate which tile the player center would be in
+            tile_x = new_x // tile_size
+            tile_y = new_y // tile_size
 
             if 0 <= tile_x < len(self.game_engine.map_engine.map_data[0]) and 0 <= tile_y < len(self.game_engine.map_engine.map_data):
                 tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
                 if tile_type == 1:  # water
                     return
 
-        self.x += dx
-        self.y += dy
-
-        self.game_engine.camera.move(dx, dy)
+        self.x = new_x
+        self.y = new_y
 
     def reset(self):
         """Resets the player position and health."""
-        self.x = 0
-        self.y = 0
+        tile_size = statics.TILE_SIZE
+        # Position player at the center of the starting tile
+        self.x = statics.PLAYER_STARTING_POSITION[0] + tile_size // 2
+        self.y = statics.PLAYER_STARTING_POSITION[1] + tile_size // 2
         self.health = 100
         self.inventory.clear()
 
