@@ -10,15 +10,15 @@ def main():
     game_engine.initialize()
     game_engine.map_engine.initialize(windows_size=(1920, 1080))
 
-    for i in range(10):
-        game_engine.game_logic.create_entity(name=f"Enemy {i}", entity_type=EntityType.ITEM, starting_pos=(100 + i * 50, 100 + i * 50), size=statics.COIN_SIZE)
-
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
 
     # game_engine.map_engine.generate_random_map(width=3000, height=2000)
     # game_engine.map_engine.save_map("random_map.txt")
     game_engine.map_engine.load_map("random_map.txt")
+
+    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ITEM, size=statics.COIN_SIZE)
+
 
     # game_engine.map_engine.print_map()
 

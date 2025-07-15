@@ -12,18 +12,15 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 class GameEngine:
     def __init__(self):
-        self.game_logic = GameLogic()
+        self.game_logic = GameLogic(self)
         self.player = Player(self)
         self.camera = Camera()
         self.map_engine = MapEngine(self)
+        self.initialized = False
         
-        
-
         pygame.init()
         pygame.display.set_caption("Game Engine Example")
         
-        self.initialized = False
-
         self.initialize()
 
 
@@ -43,10 +40,11 @@ class GameEngine:
 
 
 class GameLogic:
-    def __init__(self):
+    def __init__(self, game_engine: GameEngine):
         self.clock = pygame.time.Clock()
         self.fps = statics.FPS
         self.clock.tick(self.fps)
+        self.game_engine = game_engine
         self.entities = []
 
     def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE):
@@ -56,8 +54,27 @@ class GameLogic:
         return entity
 
     def add_entities(self, entities):
-        """Populates the game with entities."""
+        """Extends the game with entities."""
         self.entities.extend(entities)
+
+    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE):
+        """Populates the game with a specified number of entities."""
+        # Use actual map dimensions instead of static constants
+        if self.game_engine.map_engine.map_data:
+            map_width_tiles = len(self.game_engine.map_engine.map_data[0])
+            map_height_tiles = len(self.game_engine.map_engine.map_data)
+            map_width_pixels = map_width_tiles * statics.TILE_SIZE
+            map_height_pixels = map_height_tiles * statics.TILE_SIZE
+        else:
+            # Fallback to static constants if no map is loaded
+            map_width_pixels = statics.MAP_WIDTH
+            map_height_pixels = statics.MAP_HEIGHT
+        
+        for i in range(num_entities):
+            self.create_entity(name=f"Entity {i}", entity_type=entity_type, 
+                             starting_pos=(random.randint(0, map_width_pixels), 
+                                         random.randint(0, map_height_pixels)), 
+                             size=size)
 
     def reset(self):
         self.clock = pygame.time.Clock()
@@ -180,6 +197,8 @@ class MapEngine:
             raise FileNotFoundError(f"Map file '{map_path}' not found.")
         except Exception as e:
             raise RuntimeError(f"Error loading map: {e}")
+        
+        return len(self.map_data[0]) if self.map_data else 0, len(self.map_data) if self.map_data else 0
 
     def draw_map(self):
         if self.map_data is None:
