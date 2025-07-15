@@ -12,7 +12,9 @@ def main():
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
 
-    game_engine.map_engine.generate_random_map(width=3000, height=2000)
+    # game_engine.map_engine.generate_random_map(width=3000, height=2000)
+    # game_engine.map_engine.save_map("random_map.txt")
+    game_engine.map_engine.load_map("random_map.txt")
 
     # game_engine.map_engine.print_map()
 

@@ -141,7 +141,16 @@ class MapEngine:
 
     def load_map(self, map_path: str) -> None:
         """Loads a map from a specified file path."""
-        pass
+        self.map_data = []
+        try:
+            with open(f'{statics.MAPS_ROOT}/{map_path}', 'r') as f:
+                for line in f:
+                    row = list(map(int, line.strip().split()))
+                    self.map_data.append(row)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Map file '{map_path}' not found.")
+        except Exception as e:
+            raise RuntimeError(f"Error loading map: {e}")
 
 
     def draw_map(self):
