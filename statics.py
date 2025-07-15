@@ -1,4 +1,21 @@
 MAPS_ROOT = "maps"
 TILE_SIZE = 32
-FPS = 60  # Frames per second
+PLAYER_SIZE = 20
+PLAYER_SPEED = TILE_SIZE
+PLAYER_ATTACK_RADIUS = TILE_SIZE * 2
+PLAYER_STARTING_POSITION = (200, 200)  # Example starting position
+PLAYER_COLOR = (255, 0, 0)  
+ATTACK_COLOR = (255, 0, 0)
+COIN_COLOR = (255, 215, 0)  # Gold color for coins
+COIN_SIZE = 10
+NPC_COLOR = (0, 255, 0)  # Green for NPCs
+ENEMY_COLOR = (255, 0, 0)  # Red for enemies
+ENEMY_SIZE = 20
+ENEMY_SPEED = TILE_SIZE // 2  # Enemies move at half the player's speed
+ATTACK_DURATION_FRAMES = 30  # Attack visible for 30 frames
+FPS = 60
+MAP_WIDTH = 1920
+MAP_HEIGHT = 1080
 
+COLOR_WHITE = (255, 255, 255)
+COLOR_BLACK = (0, 0, 0)
