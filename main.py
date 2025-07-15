@@ -12,7 +12,7 @@ def main():
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
 
-    game_engine.map_engine.generate_map_in_proportions_of_screen()
+    game_engine.map_engine.generate_random_map(width=3000, height=2000)
 
     # game_engine.map_engine.print_map()
 
@@ -25,13 +25,13 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key == pygame.K_LEFT:
-                    game_engine.player.move(-statics.TILE_SIZE, 0)
+                    game_engine.player.move(-statics.PLAYER_SPEED, 0)
                 elif event.key == pygame.K_RIGHT:
-                    game_engine.player.move(statics.TILE_SIZE, 0)
+                    game_engine.player.move(statics.PLAYER_SPEED, 0)
                 elif event.key == pygame.K_UP:
-                    game_engine.player.move(0, -statics.TILE_SIZE)
+                    game_engine.player.move(0, -statics.PLAYER_SPEED)
                 elif event.key == pygame.K_DOWN:
-                    game_engine.player.move(0, statics.TILE_SIZE)
+                    game_engine.player.move(0, statics.PLAYER_SPEED)
 
         game_engine.map_engine.update()
 

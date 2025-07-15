@@ -156,26 +156,41 @@ class MapEngine:
         }
 
         tile_size = statics.TILE_SIZE
+        screen_width, screen_height = self.screen.get_size()
+        
+        # Calculate camera offset
+        camera_x = self.game_engine.camera.x
+        camera_y = self.game_engine.camera.y
+        
+        # Calculate which tiles are visible on screen
+        start_tile_x = max(0, camera_x // tile_size)
+        start_tile_y = max(0, camera_y // tile_size)
+        end_tile_x = min(len(self.map_data[0]), (camera_x + screen_width) // tile_size + 1)
+        end_tile_y = min(len(self.map_data), (camera_y + screen_height) // tile_size + 1)
 
-        for y in range(len(self.map_data)):
-            for x in range(len(self.map_data[y])):
-                tile_type = self.map_data[y][x]
-                color = tile_colors.get(tile_type, (255, 255, 255))
+        # Only draw visible tiles
+        for y in range(start_tile_y, end_tile_y):
+            for x in range(start_tile_x, end_tile_x):
+                if y < len(self.map_data) and x < len(self.map_data[y]):
+                    tile_type = self.map_data[y][x]
+                    color = tile_colors.get(tile_type, (255, 255, 255))
 
-                screen_x = x * tile_size
-                screen_y = y * tile_size
+                    # Calculate screen position relative to camera
+                    screen_x = x * tile_size - camera_x
+                    screen_y = y * tile_size - camera_y
 
-                pygame.draw.rect(self.screen, color,
-                                 (screen_x, screen_y, tile_size, tile_size))
+                    pygame.draw.rect(self.screen, color,
+                                     (screen_x, screen_y, tile_size, tile_size))
 
     def draw_player(self):
         """Draws the player on the map."""
         if self.game_engine.initialized and self.game_engine.player:
-            player_color = (255, 0, 0)
+            player_color = statics.PLAYER_COLOR
             player_size = statics.PLAYER_SIZE
             player_x = self.game_engine.player.x
             player_y = self.game_engine.player.y
-            pygame.draw.circle(self.screen, player_color, (int(player_x), int(player_y)), player_size)
+            pygame.draw.rect(self.screen, player_color,
+                             (player_x, player_y, player_size, player_size))
 
     def draw_camera(self):
         """Draws the camera view on the map."""
@@ -241,6 +256,8 @@ class Player:
 
         self.x += dx
         self.y += dy
+
+        self.game_engine.camera.move(dx, dy)
 
     def reset(self):
         """Resets the player position and health."""
