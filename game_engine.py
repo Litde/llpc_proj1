@@ -11,11 +11,12 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 
 class GameEngine:
-    def __init__(self):
+    def __init__(self, is_map_editor:bool = False, display_camera_location:bool = False):
         self.game_logic = GameLogic(self)
         self.player = Player(self)
-        self.camera = Camera()
+        self.camera = Camera(display_camera_location=display_camera_location)
         self.map_engine = MapEngine(self)
+        self.is_map_editor = is_map_editor
         self.initialized = False
         
         pygame.init()
@@ -28,7 +29,8 @@ class GameEngine:
         self.player.reset()
         self.camera.reset()
         self.map_engine.initialize()
-        self.game_logic.add_entities([self.player])
+        if not self.is_map_editor:
+            self.game_logic.add_entities([self.player])
         self.initialized = True
 
     def reset(self):
@@ -199,6 +201,24 @@ class MapEngine:
             raise RuntimeError(f"Error loading map: {e}")
         
         return len(self.map_data[0]) if self.map_data else 0, len(self.map_data) if self.map_data else 0
+    
+    def change_tile(self, tile_x: int, tile_y: int, new_tile_type: str):
+        """
+        Change the tile at the specified coordinates to a new tile type.
+        """
+        if not self.map_data:
+            raise ValueError("No map data available to change tiles.")
+        
+        if tile_y < 0 or tile_y >= len(self.map_data) or tile_x < 0 or tile_x >= len(self.map_data[0]):
+            raise IndexError("Tile coordinates out of bounds.")
+        
+        # Convert new_tile_type to integer
+        try:
+            new_tile_type = int(new_tile_type)
+        except ValueError:
+            raise ValueError("Invalid tile type. Must be an integer.")
+
+        self.map_data[tile_y][tile_x] = new_tile_type
 
     def draw_map(self):
         if self.map_data is None:
@@ -365,7 +385,7 @@ class MapEngine:
             if self.attack_timer <= 0:
                 self.current_attack_direction = AttackDirection.NONE
 
-        if self.game_engine.player:
+        if self.game_engine.player and not self.game_engine.is_map_editor:
             # Center camera on player (player position is already in pixels)
             self.game_engine.camera.x = self.game_engine.player.x - self.screen.get_width() // 2
             self.game_engine.camera.y = self.game_engine.player.y - self.screen.get_height() // 2

@@ -1,7 +1,7 @@
 import pygame
 import statics
-from game_engine import GameEngine, AttackDirection
-from interfaces import EntityType
+from game_engine import GameEngine
+from interfaces import EntityType, AttackDirection
 
 
 def main():
