@@ -40,6 +40,18 @@ class GameEngine:
         self.camera.reset()
         self.initialized = False
 
+    def reset_player(self):
+        """Reset just the player without affecting other game state."""
+        # Reset player state
+        self.player.reset()
+        
+        # Ensure player is in the entities list
+        if self.player not in self.game_logic.entities:
+            self.game_logic.entities.append(self.player)
+        
+        # Clear any damage tracking that might affect the player
+        self.map_engine.damaged_entities_this_attack.clear()
+
 
 class GameLogic:
     def __init__(self, game_engine: GameEngine):
@@ -51,7 +63,14 @@ class GameLogic:
 
     def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
         """Creates a new entity with the given parameters."""
-        entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
+        if entity_type == EntityType.ENEMY:
+            # Create Enemy instance for proper AI behavior
+            entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size)
+            entity.health = health  # Set custom health if provided
+        else:
+            # Create generic Entity for other types
+            entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
+        
         self.entities.append(entity)
         return entity
 
@@ -335,7 +354,7 @@ class MapEngine:
         for entity in self.game_engine.game_logic.entities:
             if (entity.x // statics.TILE_SIZE == tile_x and 
                 entity.y // statics.TILE_SIZE == tile_y and 
-                not entity.is_disposed()) and entity.entity_type != EntityType.ITEM and self.map_data[tile_y][tile_x] == 1:
+                not entity.is_disposed()) and self.map_data[tile_y][tile_x] == statics.TILE_VALUES[1]:
                 return True
         return False
 
@@ -531,6 +550,7 @@ class MapEngine:
         # self.draw_player()
         self.draw_entities()
         self.update_enemies()
+        self.game_engine.player.update()  # Update player state including invincibility timer
         self.game_engine.game_logic.pickup_coin(self.game_engine.player)
         self.game_engine.game_logic.deal_damage(
             self.game_engine.player, 
@@ -664,6 +684,12 @@ class Player(Entity):
         super().__init__(name=name, starting_pos=centered_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
         self.inventory = Inventory()
+        self.invincibility_timer = 0  # Invincibility timer to prevent immediate damage after reset
+
+    def update(self):
+        """Update the player state, including invincibility timer."""
+        if self.invincibility_timer > 0:
+            self.invincibility_timer -= 1
 
     def move(self, dx, dy):
         """Moves the player by dx and dy."""
@@ -699,7 +725,9 @@ class Player(Entity):
         self.x = statics.PLAYER_STARTING_POSITION[0] + tile_size // 2
         self.y = statics.PLAYER_STARTING_POSITION[1] + tile_size // 2
         self.health = 100
-        self.inventory.clear()
+        self.inventory = Inventory()
+        self.entity_type = EntityType.PLAYER  # Ensure entity type is set correctly
+        self.invincibility_timer = 60  # 1 second of invincibility at 60 FPS
 
 
 class Enemy(Entity):
@@ -707,22 +735,62 @@ class Enemy(Entity):
         super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.ENEMY, size=size)
         self.game_engine = game_engine
         self.speed = statics.ENEMY_SPEED  # Speed of the enemy movement
+        self.damage_cooldown = 0  # Cooldown timer for dealing damage
 
     def update(self):
         """Updates the enemy's behavior."""
-        # Basic AI: Move towards the player
-        # if self.game_engine.player:
-        #     if self.x < self.game_engine.player.x:
-        #         self.x += self.speed
-        #     elif self.x > self.game_engine.player.x:
-        #         self.x -= self.speed
+        if self.is_disposed():
+            return
+        
+        # Update damage cooldown timer
+        if self.damage_cooldown > 0:
+            self.damage_cooldown -= 1
+        
+        # Simple AI: move towards the player if within a certain distance
+        player = self.game_engine.player
+        if player.is_disposed():
+            return
+        
+        # Calculate distance to player
+        dx = player.x - self.x
+        dy = player.y - self.y
+        distance = (dx**2 + dy**2)**0.5
 
-        #     if self.y < self.game_engine.player.y:
-        #         self.y += self.speed
-        #     elif self.y > self.game_engine.player.y:
-        #         self.y -= self.speed
-        pass
-
+        if distance < statics.ENEMY_AGGRO_RADIUS and distance > 0:
+            # Normalize direction vector
+            dx_normalized = dx / distance
+            dy_normalized = dy / distance
+            
+            # Calculate new position
+            new_x = self.x + dx_normalized * self.speed
+            new_y = self.y + dy_normalized * self.speed
+            
+            # Check map boundaries
+            tile_size = statics.TILE_SIZE
+            if (new_x - self.size // 2 >= 0 and 
+                new_x + self.size // 2 < len(self.game_engine.map_engine.map_data[0]) * tile_size and
+                new_y - self.size // 2 >= 0 and 
+                new_y + self.size // 2 < len(self.game_engine.map_engine.map_data) * tile_size):
+                
+                # Check for water collision
+                tile_x = int(new_x // tile_size)
+                tile_y = int(new_y // tile_size)
+                
+                if (0 <= tile_x < len(self.game_engine.map_engine.map_data[0]) and 
+                    0 <= tile_y < len(self.game_engine.map_engine.map_data)):
+                    tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
+                    if tile_type != 1:  # Not water
+                        # Update position
+                        self.x = new_x
+                        self.y = new_y
+            
+            # Check for collision with player (only deal damage if cooldown is 0 and player is not invincible)
+            if distance < self.size and self.damage_cooldown <= 0 and player.invincibility_timer <= 0:
+                player.health -= statics.ENEMY_DAMAGE
+                # Set damage cooldown to prevent continuous damage
+                self.damage_cooldown = statics.ATTACK_DURATION_FRAMES
+                if player.health <= 0:
+                    player.dispose()
 
 class Camera:
     def __init__(self, display_camera_location=False):

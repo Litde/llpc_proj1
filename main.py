@@ -62,7 +62,7 @@ def main():
                 elif event.key == pygame.K_DOWN:
                     game_engine.player.move(0, statics.PLAYER_SPEED)
                 elif event.key == pygame.K_r:
-                    game_engine.player.reset()
+                    game_engine.reset_player()
                 elif event.key == pygame.K_i:
                     game_engine.player.inventory.toggle_inventory()
 
