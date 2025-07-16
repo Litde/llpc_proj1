@@ -15,6 +15,36 @@ class EntityType(enum.Enum):
     ENEMY = 2
     ITEM = 3
     NPC = 4
+    HEALTH = 5
+
+
+
+class ImageCache:
+    """Singleton class for caching loaded images."""
+    _instance = None
+    _cache = {}
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def get_image(cls, path):
+        """Get cached image or load and cache it."""
+        if path not in cls._cache:
+            try:
+                cls._cache[path] = pygame.image.load(path).convert_alpha()
+            except pygame.error:
+                # Return a default colored surface if image fails to load
+                cls._cache[path] = pygame.Surface((16, 16))
+                cls._cache[path].fill((255, 0, 255))  # Magenta for missing textures
+        return cls._cache[path]
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear all cached images."""
+        cls._cache.clear()
 
 
 class Entity:
@@ -33,7 +63,14 @@ class Entity:
         # Don't draw disposed entities
         if self.entity_type is None:
             return
-            
+
+        # Early culling - check if entity is visible before any processing
+        if not self._is_visible(screen, camera):
+            return
+
+        image = None
+        color = None
+
         # Placeholder for drawing logic
         if self.entity_type == EntityType.PLAYER:
             color = statics.PLAYER_COLOR
@@ -43,37 +80,78 @@ class Entity:
             color = statics.COIN_COLOR
         elif self.entity_type == EntityType.NPC:
             color = statics.NPC_COLOR
+        elif self.entity_type == EntityType.HEALTH:
+            image = ImageCache.get_image(f'{statics.TEXTURES_ROOT}/hearth16x16.png')
         else:
             color = statics.COLOR_WHITE
 
+        # If we have an image, use draw_image method
+        if image is not None:
+            self.draw_image(screen, camera, image)
+            return
+
+        # Draw colored rectangle
+        self._draw_colored_rect(screen, camera, color)
+
+    def _is_visible(self, screen, camera):
+        """Check if entity is within camera range."""
+        screen_width, screen_height = screen.get_size()
+
         tile_size = statics.TILE_SIZE
-        
         tile_x = self.x // tile_size
         tile_y = self.y // tile_size
 
-        # Calculate the center of that tile in world coordinates
         tile_center_x = tile_x * tile_size + tile_size // 2
         tile_center_y = tile_y * tile_size + tile_size // 2
-        
-        # Check if entity is within camera range before drawing
-        screen_width, screen_height = screen.get_size()
-        
-        # Calculate entity's screen position
+
         screen_center_x = tile_center_x - camera.x
         screen_center_y = tile_center_y - camera.y
-        
-        # Check if entity is visible on screen (with some padding for the entity size)
-        entity_half_size = self.size // 2
-        if (screen_center_x + entity_half_size >= 0 and 
-            screen_center_x - entity_half_size <= screen_width and
-            screen_center_y + entity_half_size >= 0 and 
-            screen_center_y - entity_half_size <= screen_height):
-            
-            # Draw entity centered at the tile center
-            draw_x = screen_center_x - entity_half_size
-            draw_y = screen_center_y - entity_half_size
 
-            pygame.draw.rect(screen, color, (draw_x, draw_y, self.size, self.size))
+        entity_half_size = self.size // 2
+        return (screen_center_x + entity_half_size >= 0 and
+                screen_center_x - entity_half_size <= screen_width and
+                screen_center_y + entity_half_size >= 0 and
+                screen_center_y - entity_half_size <= screen_height)
+
+    def _draw_colored_rect(self, screen, camera, color):
+        """Draw entity as colored rectangle."""
+        tile_size = statics.TILE_SIZE
+        tile_x = self.x // tile_size
+        tile_y = self.y // tile_size
+
+        tile_center_x = tile_x * tile_size + tile_size // 2
+        tile_center_y = tile_y * tile_size + tile_size // 2
+
+        screen_center_x = tile_center_x - camera.x
+        screen_center_y = tile_center_y - camera.y
+
+        entity_half_size = self.size // 2
+        draw_x = screen_center_x - entity_half_size
+        draw_y = screen_center_y - entity_half_size
+
+        pygame.draw.rect(screen, color, (draw_x, draw_y, self.size, self.size))
+
+    def draw_image(self, screen, camera, image):
+        """Draw the entity using a specific image."""
+        if self.entity_type is None or not self._is_visible(screen, camera):
+            return
+
+        tile_size = statics.TILE_SIZE
+        tile_x = self.x // tile_size
+        tile_y = self.y // tile_size
+
+        tile_center_x = tile_x * tile_size + tile_size // 2
+        tile_center_y = tile_y * tile_size + tile_size // 2
+
+        screen_center_x = tile_center_x - camera.x
+        screen_center_y = tile_center_y - camera.y
+
+        entity_half_size = self.size // 2
+        draw_x = screen_center_x - entity_half_size
+        draw_y = screen_center_y - entity_half_size
+
+        image_rect = image.get_rect(center=(draw_x + entity_half_size, draw_y + entity_half_size))
+        screen.blit(image, image_rect)
 
     def check_collision(self, other_entity):
         """Check if this entity collides with another entity."""

@@ -61,16 +61,20 @@ class GameLogic:
         self.game_engine = game_engine
         self.entities = []
 
-    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
+    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC,
+                      starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 0):
         """Creates a new entity with the given parameters."""
         if entity_type == EntityType.ENEMY:
             # Create Enemy instance for proper AI behavior
             entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size)
             entity.health = health  # Set custom health if provided
+        elif entity_type == EntityType.HEALTH:
+            # Create Health entity
+            entity = Health(name=name, starting_pos=starting_pos, size=size)
         else:
             # Create generic Entity for other types
             entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
-        
+
         self.entities.append(entity)
         return entity
 
@@ -78,7 +82,7 @@ class GameLogic:
         """Extends the game with entities."""
         self.entities.extend(entities)
 
-    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 100):
+    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 0):
         """Populates the game with a specified number of entities."""
         # Use actual map dimensions instead of static constants
         if self.game_engine.map_engine.map_data:
@@ -110,6 +114,7 @@ class GameLogic:
                              size=size,
                              health=health)
 
+
     def reset(self):
         self.clock = pygame.time.Clock()
         self.fps = statics.FPS
@@ -133,6 +138,21 @@ class GameLogic:
                     self.entities.remove(coin)
                     player.inventory.append(coin)
                     coin.dispose()
+
+    def pickup_health(self, player):
+        """Handles picking up a health entity."""
+        for health in self.entities[:]:  # Create copy to avoid modification during iteration
+            if not health.is_disposed() and health.entity_type == EntityType.HEALTH:
+                if player.check_collision(health):
+                    if isinstance(health, Health):
+                        health.use(player)
+                    else:
+                        # Fallback for generic Entity with HEALTH type
+                        player.health += 20
+                        if player.health > 100:
+                            player.health = 100
+                        self.dispose_entity(health)
+
 
     def deal_damage(self, player, attack_direction, attack_timer, damaged_entities_this_attack, damage=statics.ATTACK_DAMAGE):
         """Deals damage to entities in the attack area based on attack direction."""
@@ -311,7 +331,7 @@ class MapEngine:
             for row in self.map_data:
                 f.write(' '.join(str(tile) for tile in row) + '\n')
 
-    def load_map(self, map_path: str) -> None:
+    def load_map(self, map_path: str):
         """Loads a map from a specified file path."""
         self.map_data = []
         try:
@@ -560,6 +580,7 @@ class MapEngine:
             self.attack_timer, 
             self.damaged_entities_this_attack
         )
+        self.game_engine.game_logic.pickup_health(self.game_engine.player)
         self.draw_entities_health_bars()
 
         self.draw_camera()
@@ -792,6 +813,20 @@ class Enemy(Entity):
                 self.damage_cooldown = statics.ATTACK_DURATION_FRAMES
                 if player.health <= 0:
                     player.dispose()
+
+
+class Health(Entity):
+    def __init__(self, starting_pos=statics.PLAYER_STARTING_POSITION, name="Health", size=statics.PLAYER_SIZE):
+        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.HEALTH, size=size, health=0)
+        self.heal_amount = 20  # Amount of health restored when used
+
+    def use(self, player):
+        """Restores health to the player."""
+        if not self.is_disposed() and player.health < 100:
+            player.health += self.heal_amount
+            if player.health > 100:
+                player.health = 100
+            self.dispose()  # Properly dispose using game logic
 
 class Camera:
     def __init__(self, display_camera_location=False):
