@@ -25,6 +25,7 @@ def main():
     # game_engine.map_engine.print_map()
 
     running = True
+    is_inventory_open = False
     while running:
         attack = AttackDirection.NONE
         keys = pygame.key.get_pressed()  # Get all currently pressed keys
@@ -63,6 +64,8 @@ def main():
                     game_engine.player.move(0, statics.PLAYER_SPEED)
                 elif event.key == pygame.K_r:
                     game_engine.player.reset()
+                elif event.key == pygame.K_i:
+                    game_engine.player.inventory.toggle_inventory()
 
         game_engine.map_engine.update(attack_direction=attack)
 

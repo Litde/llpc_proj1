@@ -2,7 +2,7 @@ import random
 import statics
 import pygame
 import pygame, os
-from interfaces import AttackDirection, EntityType, Entity
+from interfaces import AttackDirection, EntityType, Entity, UI
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
@@ -442,6 +442,10 @@ class MapEngine:
         if self.attack_timer > 0:
             self.draw_attack(self.current_attack_direction)
         
+        # Draw UI (inventory, etc.)
+        if not self.game_engine.is_map_editor:
+            self.game_engine.player.inventory.draw(self.screen, self.game_engine.player)
+        
         # Clean up disposed entities
         self.game_engine.game_logic.cleanup_disposed_entities()
             
@@ -459,6 +463,43 @@ class MapEngine:
             print("No map data available to print.")
 
 
+class Inventory(UI):
+    def __init__(self):
+        super().__init__()
+        self.items = []
+
+    def __add__(self, item):
+        """Adds an item to the inventory."""
+        self.items.append(item)
+
+    def append(self, item):
+        """Appends an item to the inventory."""
+        self.items.append(item)
+
+    def clear(self):
+        """Clears the inventory."""
+        self.items.clear()
+
+    def __len__(self):
+        """Returns the number of items in the inventory."""
+        return len(self.items)
+
+    def remove_item(self, item):
+        if item in self.items:
+            self.items.remove(item)
+
+    def draw(self, screen, player=None):
+        super().draw(screen, player)
+        # The parent UI class already handles drawing the inventory
+        # No need to draw items separately here since they're handled by draw_inventory
+
+    def update(self):
+        super().update()
+        # Update inventory items
+        for item in self.items:
+            item.update()
+            
+
 
 class Player(Entity):
     def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player", size=statics.PLAYER_SIZE):
@@ -467,7 +508,7 @@ class Player(Entity):
         centered_pos = (starting_pos[0] + tile_size // 2, starting_pos[1] + tile_size // 2)
         super().__init__(name=name, starting_pos=centered_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
-        self.inventory = []
+        self.inventory = Inventory()
 
     def move(self, dx, dy):
         """Moves the player by dx and dy."""
