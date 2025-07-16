@@ -171,66 +171,9 @@ class UI:
         self.slot_size = 40
         self.slot_padding = 5
 
-    def draw_inventory(self, screen, player):
-        """Draw the player's inventory on screen."""
-        if not self.show_inventory or not player or not hasattr(player, 'inventory'):
-            return
-        
-        # Get inventory items - handle both list and Inventory object
-        inventory_items = player.inventory.items if hasattr(player.inventory, 'items') else player.inventory
-        
-        # Initialize font
-        font = pygame.font.Font(None, 24)
-        
-        # Draw inventory background
-        inventory_width = (self.slot_size + self.slot_padding) * 10 + self.slot_padding
-        inventory_height = self.slot_size + 2 * self.slot_padding + 30  # Extra space for title
-        
-        # Background rectangle
-        inventory_rect = pygame.Rect(self.inventory_x, self.inventory_y, inventory_width, inventory_height)
-        pygame.draw.rect(screen, (50, 50, 50, 180), inventory_rect)
-        pygame.draw.rect(screen, (200, 200, 200), inventory_rect, 2)
-        
-        # Draw title
-        title_text = font.render("Inventory", True, (255, 255, 255))
-        screen.blit(title_text, (self.inventory_x + 5, self.inventory_y + 5))
-        
-        # Draw inventory slots
-        slot_y = self.inventory_y + 30
-        for i in range(10):  # Display up to 10 inventory slots
-            slot_x = self.inventory_x + self.slot_padding + i * (self.slot_size + self.slot_padding)
-            
-            # Draw slot background
-            slot_rect = pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
-            pygame.draw.rect(screen, (80, 80, 80), slot_rect)
-            pygame.draw.rect(screen, (150, 150, 150), slot_rect, 1)
-            
-            # Draw item if it exists
-            if i < len(inventory_items):
-                item = inventory_items[i]
-                if not item.is_disposed():
-                    # Draw item representation (small colored square)
-                    item_color = statics.COIN_COLOR if item.entity_type == EntityType.ITEM else (255, 255, 255)
-                    item_size = self.slot_size - 8
-                    item_x = slot_x + 4
-                    item_y = slot_y + 4
-                    pygame.draw.rect(screen, item_color, (item_x, item_y, item_size, item_size))
-                    
-                    # Draw item count or type indicator
-                    if hasattr(item, 'name') and item.name:
-                        # Show first letter of item name
-                        text = font.render(item.name[0].upper(), True, (0, 0, 0))
-                        text_rect = text.get_rect(center=(slot_x + self.slot_size // 2, slot_y + self.slot_size // 2))
-                        screen.blit(text, text_rect)
-        
-        # Draw inventory count
-        count_text = font.render(f"Items: {len(inventory_items)}", True, (255, 255, 255))
-        screen.blit(count_text, (self.inventory_x + inventory_width - 100, self.inventory_y + 5))
-
     def draw(self, screen, player=None):
         """Main UI drawing method."""
-        if player:
-            self.draw_inventory(screen, player)
+        pass
 
     def update(self):
         """Update UI state."""

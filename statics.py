@@ -6,6 +6,7 @@ PLAYER_ATTACK_RADIUS = TILE_SIZE * 2
 PLAYER_STARTING_POSITION = (200, 200)  # Example starting position
 PLAYER_COLOR = (255, 0, 0)  
 ATTACK_COLOR = (255, 0, 0)
+ATTACK_DAMAGE = 10
 COIN_COLOR = (255, 215, 0)  # Gold color for coins
 COIN_SIZE = 10
 NPC_COLOR = (0, 255, 0)  # Green for NPCs

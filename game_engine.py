@@ -74,9 +74,14 @@ class GameLogic:
         
         for i in range(num_entities):
             # Generate random tile coordinates
-            tile_x = random.randint(0, map_width_pixels // statics.TILE_SIZE - 1)
-            tile_y = random.randint(0, map_height_pixels // statics.TILE_SIZE - 1)
-            
+            tile_occupied = False
+            while not tile_occupied:
+                tile_x = random.randint(0, map_width_pixels // statics.TILE_SIZE - 1)
+                tile_y = random.randint(0, map_height_pixels // statics.TILE_SIZE - 1)
+
+                # Check if the tile is already occupied
+                tile_occupied = not self.game_engine.map_engine.is_tile_occupied(tile_x, tile_y)
+
             # Position entity at the center of the tile
             center_x = tile_x * statics.TILE_SIZE + statics.TILE_SIZE // 2
             center_y = tile_y * statics.TILE_SIZE + statics.TILE_SIZE // 2
@@ -110,6 +115,78 @@ class GameLogic:
                     player.inventory.append(coin)
                     coin.dispose()
 
+    def deal_damage(self, player, attack_direction, attack_timer, damaged_entities_this_attack, damage=statics.ATTACK_DAMAGE):
+        """Deals damage to entities in the attack area based on attack direction."""
+        if player.is_disposed() or attack_timer <= 0:
+            return
+        
+        # Calculate player position (centered in tile)
+        tile_size = statics.TILE_SIZE
+        player_tile_x = player.x // tile_size
+        player_tile_y = player.y // tile_size
+        player_center_x = player_tile_x * tile_size + tile_size // 2
+        player_center_y = player_tile_y * tile_size + tile_size // 2
+        
+        # Define attack area based on direction
+        attack_range = statics.PLAYER_ATTACK_RADIUS
+        attack_thickness = tile_size  # Make attack area tile-width thick
+        attack_rect = None
+        
+        if attack_direction == AttackDirection.UP:
+            attack_rect = pygame.Rect(
+                player_center_x - attack_thickness // 2,
+                player_center_y - attack_range,
+                attack_thickness, 
+                attack_range
+            )
+        elif attack_direction == AttackDirection.DOWN:
+            attack_rect = pygame.Rect(
+                player_center_x - attack_thickness // 2,
+                player_center_y,
+                attack_thickness,
+                attack_range
+            )
+        elif attack_direction == AttackDirection.LEFT:
+            attack_rect = pygame.Rect(
+                player_center_x - attack_range,
+                player_center_y - attack_thickness // 2,
+                attack_range,
+                attack_thickness
+            )
+        elif attack_direction == AttackDirection.RIGHT:
+            attack_rect = pygame.Rect(
+                player_center_x,
+                player_center_y - attack_thickness // 2,
+                attack_range,
+                attack_thickness
+            )
+        
+        if attack_rect is None:
+            return
+        
+        # Check collision with entities in the attack area
+        for entity in self.entities:
+            if (not entity.is_disposed() and 
+                entity.entity_type != EntityType.PLAYER and 
+                entity.entity_type != EntityType.ITEM and  # Don't attack items/coins
+                entity not in damaged_entities_this_attack):  # Only damage each entity once per attack
+                
+                # Create entity rectangle centered on entity position
+                entity_rect = pygame.Rect(
+                    entity.x - entity.size // 2,
+                    entity.y - entity.size // 2,
+                    entity.size,
+                    entity.size
+                )
+                
+                # Check if attack area intersects with entity
+                if attack_rect.colliderect(entity_rect):
+                    # Mark this entity as damaged in this attack
+                    damaged_entities_this_attack.add(entity)
+                    entity.health -= damage
+                    if entity.health <= 0:
+                        self.dispose_entity(entity)
+
 
 class MapEngine:
     def __init__(self, game_engine: GameEngine, map_path:str=None):
@@ -122,6 +199,7 @@ class MapEngine:
         # Attack timer system
         self.attack_timer = 0
         self.current_attack_direction = AttackDirection.NONE
+        self.damaged_entities_this_attack = set()  # Track entities damaged in current attack
 
         self.initialize()
 
@@ -143,6 +221,7 @@ class MapEngine:
         self.initialized = False
         self.attack_timer = 0
         self.current_attack_direction = AttackDirection.NONE
+        self.damaged_entities_this_attack = set()
 
 
     def generate_seeded_map(self, seed=None, width=20, height=20):
@@ -245,6 +324,20 @@ class MapEngine:
             raise ValueError("Invalid tile type. Must be an integer.")
 
         self.map_data[tile_y][tile_x] = new_tile_type
+
+    def is_tile_occupied(self, tile_x: int, tile_y: int) -> bool:
+        """
+        Check if a tile at the specified coordinates is occupied by an entity.
+        """
+        if not self.game_engine or not self.game_engine.game_logic:
+            return False
+        
+        for entity in self.game_engine.game_logic.entities:
+            if (entity.x // statics.TILE_SIZE == tile_x and 
+                entity.y // statics.TILE_SIZE == tile_y and 
+                not entity.is_disposed()) and entity.entity_type != EntityType.ITEM and self.map_data[tile_y][tile_x] == 1:
+                return True
+        return False
 
     def draw_map(self):
         if self.map_data is None:
@@ -417,12 +510,16 @@ class MapEngine:
         if attack_direction is not None and attack_direction != AttackDirection.NONE:
             self.current_attack_direction = attack_direction
             self.attack_timer = statics.ATTACK_DURATION_FRAMES
+            # Clear the damaged entities set for the new attack
+            self.damaged_entities_this_attack.clear()
         
         # Update attack timer
         if self.attack_timer > 0:
             self.attack_timer -= 1
             if self.attack_timer <= 0:
                 self.current_attack_direction = AttackDirection.NONE
+                # Clear damaged entities when attack ends
+                self.damaged_entities_this_attack.clear()
 
         if self.game_engine.player and not self.game_engine.is_map_editor:
             # Center camera on player (player position is already in pixels)
@@ -433,9 +530,16 @@ class MapEngine:
         self.draw_game_starting_position()
         # self.draw_player()
         self.draw_entities()
-        self.draw_entities_health_bars()
         self.update_enemies()
         self.game_engine.game_logic.pickup_coin(self.game_engine.player)
+        self.game_engine.game_logic.deal_damage(
+            self.game_engine.player, 
+            self.current_attack_direction, 
+            self.attack_timer, 
+            self.damaged_entities_this_attack
+        )
+        self.draw_entities_health_bars()
+
         self.draw_camera()
         
         # Draw attack if timer is active
@@ -488,10 +592,61 @@ class Inventory(UI):
         if item in self.items:
             self.items.remove(item)
 
-    def draw(self, screen, player=None):
-        super().draw(screen, player)
-        # The parent UI class already handles drawing the inventory
-        # No need to draw items separately here since they're handled by draw_inventory
+    def draw(self, screen, player):
+        """Draw the player's inventory on screen."""
+        if not self.show_inventory or not player or not hasattr(player, 'inventory'):
+            return
+        
+        # Get inventory items - handle both list and Inventory object
+        inventory_items = player.inventory.items if hasattr(player.inventory, 'items') else player.inventory
+        
+        # Initialize font
+        font = pygame.font.Font(None, 24)
+        
+        # Draw inventory background
+        inventory_width = (self.slot_size + self.slot_padding) * 10 + self.slot_padding
+        inventory_height = self.slot_size + 2 * self.slot_padding + 30  # Extra space for title
+        
+        # Background rectangle
+        inventory_rect = pygame.Rect(self.inventory_x, self.inventory_y, inventory_width, inventory_height)
+        pygame.draw.rect(screen, (50, 50, 50, 180), inventory_rect)
+        pygame.draw.rect(screen, (200, 200, 200), inventory_rect, 2)
+        
+        # Draw title
+        title_text = font.render("Inventory", True, (255, 255, 255))
+        screen.blit(title_text, (self.inventory_x + 5, self.inventory_y + 5))
+        
+        # Draw inventory slots
+        slot_y = self.inventory_y + 30
+        for i in range(10):  # Display up to 10 inventory slots
+            slot_x = self.inventory_x + self.slot_padding + i * (self.slot_size + self.slot_padding)
+            
+            # Draw slot background
+            slot_rect = pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
+            pygame.draw.rect(screen, (80, 80, 80), slot_rect)
+            pygame.draw.rect(screen, (150, 150, 150), slot_rect, 1)
+            
+            # Draw item if it exists
+            if i < len(inventory_items):
+                item = inventory_items[i]
+                if not item.is_disposed():
+                    # Draw item representation (small colored square)
+                    item_color = statics.COIN_COLOR if item.entity_type == EntityType.ITEM else (255, 255, 255)
+                    item_size = self.slot_size - 8
+                    item_x = slot_x + 4
+                    item_y = slot_y + 4
+                    pygame.draw.rect(screen, item_color, (item_x, item_y, item_size, item_size))
+                    
+                    # Draw item count or type indicator
+                    if hasattr(item, 'name') and item.name:
+                        # Show first letter of item name
+                        text = font.render(item.name[0].upper(), True, (0, 0, 0))
+                        text_rect = text.get_rect(center=(slot_x + self.slot_size // 2, slot_y + self.slot_size // 2))
+                        screen.blit(text, text_rect)
+        
+        # Draw inventory count
+        count_text = font.render(f"Items: {len(inventory_items)}", True, (255, 255, 255))
+        screen.blit(count_text, (self.inventory_x + inventory_width - 100, self.inventory_y + 5))
 
     def update(self):
         super().update()

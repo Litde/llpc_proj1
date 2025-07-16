@@ -25,10 +25,9 @@ def main():
     # game_engine.map_engine.print_map()
 
     running = True
-    is_inventory_open = False
     while running:
         attack = AttackDirection.NONE
-        keys = pygame.key.get_pressed()  # Get all currently pressed keys
+        keys = pygame.key.get_pressed()
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
