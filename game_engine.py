@@ -350,11 +350,13 @@ class MapEngine:
         """
         if not self.game_engine or not self.game_engine.game_logic:
             return False
-        
+
+        is_water = self.map_data[tile_y][tile_x] == list(statics.TILE_VALUES.keys())[1]
+
         for entity in self.game_engine.game_logic.entities:
             if (entity.x // statics.TILE_SIZE == tile_x and 
                 entity.y // statics.TILE_SIZE == tile_y and 
-                not entity.is_disposed()) and self.map_data[tile_y][tile_x] == statics.TILE_VALUES[1]:
+                not entity.is_disposed()) or is_water:
                 return True
         return False
 
