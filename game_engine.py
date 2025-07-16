@@ -49,9 +49,9 @@ class GameLogic:
         self.game_engine = game_engine
         self.entities = []
 
-    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE):
+    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
         """Creates a new entity with the given parameters."""
-        entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size)
+        entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
         self.entities.append(entity)
         return entity
 
@@ -59,7 +59,7 @@ class GameLogic:
         """Extends the game with entities."""
         self.entities.extend(entities)
 
-    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE):
+    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 100):
         """Populates the game with a specified number of entities."""
         # Use actual map dimensions instead of static constants
         if self.game_engine.map_engine.map_data:
@@ -76,7 +76,8 @@ class GameLogic:
             self.create_entity(name=f"Entity {i}", entity_type=entity_type, 
                              starting_pos=(random.randint(0, map_width_pixels), 
                                          random.randint(0, map_height_pixels)), 
-                             size=size)
+                             size=size,
+                             health=health)
 
     def reset(self):
         self.clock = pygame.time.Clock()
@@ -369,6 +370,17 @@ class MapEngine:
         for entity in self.game_engine.game_logic.entities:
             entity.draw(self.screen, self.game_engine.camera)
 
+    def draw_entities_health_bars(self):
+        """Draws health bars for all entities on the map."""
+        for entity in self.game_engine.game_logic.entities:
+            entity.draw_health_bar(self.screen, self.game_engine.camera)
+
+    def update_enemies(self):
+        """Updates all enemies' behavior."""
+        for entity in self.game_engine.game_logic.entities:
+            if isinstance(entity, Enemy):
+                entity.update()
+
     def update(self, attack_direction: AttackDirection = None):
         """Updates the map engine state."""
         if not self.initialized:
@@ -394,6 +406,8 @@ class MapEngine:
         self.draw_game_starting_position()
         # self.draw_player()
         self.draw_entities()
+        self.draw_entities_health_bars()
+        self.update_enemies()
         self.draw_camera()
         
         # Draw attack if timer is active
@@ -456,6 +470,28 @@ class Player(Entity):
         self.y = statics.PLAYER_STARTING_POSITION[1] + tile_size // 2
         self.health = 100
         self.inventory.clear()
+
+
+class Enemy(Entity):
+    def __init__(self, game_engine: GameEngine, starting_pos=statics.ENEMY_STARTING_POSITION, name="Enemy", size=statics.ENEMY_SIZE):
+        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.ENEMY, size=size)
+        self.game_engine = game_engine
+        self.speed = statics.ENEMY_SPEED  # Speed of the enemy movement
+
+    def update(self):
+        """Updates the enemy's behavior."""
+        # Basic AI: Move towards the player
+        # if self.game_engine.player:
+        #     if self.x < self.game_engine.player.x:
+        #         self.x += self.speed
+        #     elif self.x > self.game_engine.player.x:
+        #         self.x -= self.speed
+
+        #     if self.y < self.game_engine.player.y:
+        #         self.y += self.speed
+        #     elif self.y > self.game_engine.player.y:
+        #         self.y -= self.speed
+        pass
 
 
 class Camera:

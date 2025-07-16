@@ -13,11 +13,13 @@ def main():
     if not game_engine.initialized:
         raise Exception("Game engine not initialized. Call initialize() first.")
 
-    # game_engine.map_engine.generate_random_map(width=3000, height=2000)
-    # game_engine.map_engine.save_map("random_map.txt")
-    game_engine.map_engine.load_map("random_map.txt")
+    # game_engine.map_engine.generate_random_map(width=250, height=250)
+    # game_engine.map_engine.save_map("test_map.txt")
+    game_engine.map_engine.load_map("test_map.txt")
 
-    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ITEM, size=statics.COIN_SIZE)
+    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ITEM, size=statics.COIN_SIZE, health=0)
+
+    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ENEMY, size=statics.ENEMY_SIZE, health=100)
 
 
     # game_engine.map_engine.print_map()

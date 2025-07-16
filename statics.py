@@ -10,6 +10,7 @@ COIN_COLOR = (255, 215, 0)  # Gold color for coins
 COIN_SIZE = 10
 NPC_COLOR = (0, 255, 0)  # Green for NPCs
 ENEMY_COLOR = (255, 0, 0)  # Red for enemies
+ENEMY_STARTING_POSITION = (100, 100)  # Example enemy starting position
 ENEMY_SIZE = 20
 ENEMY_SPEED = TILE_SIZE // 2  # Enemies move at half the player's speed
 ATTACK_DURATION_FRAMES = 30  # Attack visible for 30 frames
