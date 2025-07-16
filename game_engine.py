@@ -73,9 +73,16 @@ class GameLogic:
             map_height_pixels = statics.MAP_HEIGHT
         
         for i in range(num_entities):
+            # Generate random tile coordinates
+            tile_x = random.randint(0, map_width_pixels // statics.TILE_SIZE - 1)
+            tile_y = random.randint(0, map_height_pixels // statics.TILE_SIZE - 1)
+            
+            # Position entity at the center of the tile
+            center_x = tile_x * statics.TILE_SIZE + statics.TILE_SIZE // 2
+            center_y = tile_y * statics.TILE_SIZE + statics.TILE_SIZE // 2
+            
             self.create_entity(name=f"Entity {i}", entity_type=entity_type, 
-                             starting_pos=(random.randint(0, map_width_pixels), 
-                                         random.randint(0, map_height_pixels)), 
+                             starting_pos=(center_x, center_y), 
                              size=size,
                              health=health)
 
@@ -84,6 +91,24 @@ class GameLogic:
         self.fps = statics.FPS
         self.clock.tick(self.fps)
         self.entities.clear()
+
+    def cleanup_disposed_entities(self):
+        """Remove disposed entities from the entities list to prevent memory leaks."""
+        self.entities = [entity for entity in self.entities if not entity.is_disposed()]
+
+    def dispose_entity(self, entity):
+        """Dispose an entity and schedule it for removal."""
+        if entity in self.entities:
+            entity.dispose()
+
+    def pickup_coin(self, player):
+        """Handles picking up a coin entity."""
+        for coin in self.entities:
+            if not coin.is_disposed() and coin.entity_type == EntityType.ITEM:
+                if player.check_collision(coin):
+                    self.entities.remove(coin)
+                    player.inventory.append(coin)
+                    coin.dispose()
 
 
 class MapEngine:
@@ -368,17 +393,19 @@ class MapEngine:
     def draw_entities(self):
         """Draws all entities on the map."""
         for entity in self.game_engine.game_logic.entities:
-            entity.draw(self.screen, self.game_engine.camera)
+            if not entity.is_disposed():
+                entity.draw(self.screen, self.game_engine.camera)
 
     def draw_entities_health_bars(self):
         """Draws health bars for all entities on the map."""
         for entity in self.game_engine.game_logic.entities:
-            entity.draw_health_bar(self.screen, self.game_engine.camera)
+            if not entity.is_disposed():
+                entity.draw_health_bar(self.screen, self.game_engine.camera)
 
     def update_enemies(self):
         """Updates all enemies' behavior."""
         for entity in self.game_engine.game_logic.entities:
-            if isinstance(entity, Enemy):
+            if not entity.is_disposed() and isinstance(entity, Enemy):
                 entity.update()
 
     def update(self, attack_direction: AttackDirection = None):
@@ -408,11 +435,15 @@ class MapEngine:
         self.draw_entities()
         self.draw_entities_health_bars()
         self.update_enemies()
+        self.game_engine.game_logic.pickup_coin(self.game_engine.player)
         self.draw_camera()
         
         # Draw attack if timer is active
         if self.attack_timer > 0:
             self.draw_attack(self.current_attack_direction)
+        
+        # Clean up disposed entities
+        self.game_engine.game_logic.cleanup_disposed_entities()
             
         pygame.display.flip()
 
@@ -431,7 +462,10 @@ class MapEngine:
 
 class Player(Entity):
     def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player", size=statics.PLAYER_SIZE):
-        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.PLAYER, size=size)
+        # Ensure player starts at the center of the starting tile
+        tile_size = statics.TILE_SIZE
+        centered_pos = (starting_pos[0] + tile_size // 2, starting_pos[1] + tile_size // 2)
+        super().__init__(name=name, starting_pos=centered_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
         self.inventory = []
 

@@ -25,7 +25,15 @@ class Entity:
         self.entity_type = entity_type
         self.size = size
 
+    def is_disposed(self):
+        """Check if this entity has been disposed."""
+        return self.entity_type is None
+
     def draw(self, screen, camera):
+        # Don't draw disposed entities
+        if self.entity_type is None:
+            return
+            
         # Placeholder for drawing logic
         if self.entity_type == EntityType.PLAYER:
             color = statics.PLAYER_COLOR
@@ -67,7 +75,38 @@ class Entity:
 
             pygame.draw.rect(screen, color, (draw_x, draw_y, self.size, self.size))
 
+    def check_collision(self, other_entity):
+        """Check if this entity collides with another entity."""
+        # Don't check collisions for disposed entities
+        if self.entity_type is None or other_entity.entity_type is None:
+            return False
+            
+        if not isinstance(other_entity, Entity):
+            return False
+        
+        # Check for rectangle collision
+        # Since entities are drawn centered on their x,y coordinates,
+        # we need to adjust for collision detection by considering the entity's center
+        self_left = self.x - self.size // 2
+        self_top = self.y - self.size // 2
+        self_right = self_left + self.size
+        self_bottom = self_top + self.size
+        
+        other_left = other_entity.x - other_entity.size // 2
+        other_top = other_entity.y - other_entity.size // 2
+        other_right = other_left + other_entity.size
+        other_bottom = other_top + other_entity.size
+        
+        return (self_left < other_right and
+                self_right > other_left and
+                self_top < other_bottom and
+                self_bottom > other_top)
+
     def draw_health_bar(self, screen, camera):
+        # Don't draw health bar for disposed entities
+        if self.entity_type is None:
+            return
+            
         if self.health <= 0:
             return
         
@@ -96,3 +135,28 @@ class Entity:
         
         pygame.draw.rect(screen, (0, 0, 0), (draw_x, draw_y, health_bar_width, health_bar_height))
         pygame.draw.rect(screen, health_bar_color, (draw_x, draw_y, health_bar_width * health_ratio, health_bar_height))
+    
+    def dispose(self):
+        """Clean up resources and reset entity state."""
+        # Prevent double disposal
+        if self.entity_type is None:
+            return
+            
+        # Reset entity properties to default/safe values
+        self.health = 0
+        self.x = 0
+        self.y = 0
+        self.name = "Disposed Entity"
+        
+        # Clear any references that might cause memory leaks
+        # (In this simple case, there aren't any complex references,
+        # but this is where you'd clean up things like:
+        # - Event listeners
+        # - File handles
+        # - Network connections
+        # - Custom pygame surfaces
+        # - Animation timers, etc.)
+        
+        # Mark as disposed for debugging
+        self.entity_type = None
+        
