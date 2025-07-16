@@ -716,7 +716,6 @@ class Player(Entity):
                 tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
                 if tile_type == 1:  # water
                     return
-
         self.x = new_x
         self.y = new_y
 
@@ -766,7 +765,7 @@ class Enemy(Entity):
             # Calculate new position
             new_x = self.x + dx_normalized * self.speed
             new_y = self.y + dy_normalized * self.speed
-            
+
             # Check map boundaries
             tile_size = statics.TILE_SIZE
             if (new_x - self.size // 2 >= 0 and 
