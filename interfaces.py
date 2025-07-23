@@ -48,12 +48,17 @@ class ImageCache:
 
 
 class Entity:
-    def __init__(self, name:str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
+    def __init__(self, name:str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100, level: int = 1):
         self.name = name
         self.x, self.y = starting_pos
         self.health = health
         self.entity_type = entity_type
         self.size = size
+        self.level = level
+
+    def get_position(self):
+        """Get the current position of the entity."""
+        return self.x, self.y
 
     def is_disposed(self):
         """Check if this entity has been disposed."""
@@ -78,6 +83,7 @@ class Entity:
             color = statics.ENEMY_COLOR
         elif self.entity_type == EntityType.ITEM:
             color = statics.COIN_COLOR
+            image = ImageCache.get_image(f'{statics.TEXTURES_ROOT}/coin16x16.png')
         elif self.entity_type == EntityType.NPC:
             color = statics.NPC_COLOR
         elif self.entity_type == EntityType.HEALTH:
@@ -92,6 +98,7 @@ class Entity:
 
         # Draw colored rectangle
         self._draw_colored_rect(screen, camera, color)
+        self._draw_level(screen, camera)
 
     def _is_visible(self, screen, camera):
         """Check if entity is within camera range."""
@@ -180,39 +187,62 @@ class Entity:
                 self_top < other_bottom and
                 self_bottom > other_top)
 
+    def _draw_level(self, screen, camera):
+        """Draw the entity's level above its sprite."""
+        if self.entity_type is None:
+            return
+        font = pygame.font.Font(statics.FONT_NAME, statics.FONT_SIZE)
+        if not font:
+            font = pygame.font.SysFont(None, 16)
+        if self.entity_type == EntityType.PLAYER:
+            level_text = font.render(f"level: {self.level}", True, (255, 255, 255))
+            # Draw above health bar (health bar is 2px above entity, 5px tall, so 10px above that)
+            tile_size = statics.TILE_SIZE
+            tile_x = self.x // tile_size
+            tile_y = self.y // tile_size
+            tile_center_x = tile_x * tile_size + tile_size // 2
+            tile_center_y = tile_y * tile_size + tile_size // 2
+            screen_center_x = tile_center_x - camera.x
+            screen_center_y = tile_center_y - camera.y
+            draw_y = screen_center_y - self.size // 2 - 5 - 2 - 10  # health bar height + offset + 10px above
+            text_rect = level_text.get_rect(center=(screen_center_x, draw_y))
+            screen.blit(level_text, text_rect)
+        else:
+            level_text = font.render(str(self.level), True, (255, 255, 255))
+            tile_size = statics.TILE_SIZE
+            tile_x = self.x // tile_size
+            tile_y = self.y // tile_size
+            tile_center_x = tile_x * tile_size + tile_size // 2
+            tile_center_y = tile_y * tile_size + tile_size // 2
+            screen_center_x = tile_center_x - camera.x
+            screen_center_y = tile_center_y - camera.y
+            text_rect = level_text.get_rect(center=(screen_center_x, screen_center_y - self.size // 2 - 10))
+            screen.blit(level_text, text_rect)
+
     def draw_health_bar(self, screen, camera):
         # Don't draw health bar for disposed entities
         if self.entity_type is None:
             return
-            
         if self.health <= 0:
             return
-        
-        # Draw health bar above the entity
+        # Draw health bar just above the entity, closer than before
         health_bar_width = self.size
         health_bar_height = 5
         health_ratio = self.health / 100.0
         health_bar_color = (255, 0, 0) if self.health < 30 else (0, 255, 0)
-        
         tile_size = statics.TILE_SIZE
-        
         tile_x = self.x // tile_size
         tile_y = self.y // tile_size
-
-        # Calculate the center of that tile in world coordinates
         tile_center_x = tile_x * tile_size + tile_size // 2
         tile_center_y = tile_y * tile_size + tile_size // 2
-        
-        # Calculate the screen position of the entity
         screen_center_x = tile_center_x - camera.x
         screen_center_y = tile_center_y - camera.y
-        
-        # Draw the health bar above the entity
+        # Move health bar closer to entity (just above, not far)
         draw_x = screen_center_x - health_bar_width // 2
-        draw_y = screen_center_y - self.size - health_bar_height
-        
+        draw_y = screen_center_y - self.size // 2 - health_bar_height - 2  # 2 pixels above entity
         pygame.draw.rect(screen, (0, 0, 0), (draw_x, draw_y, health_bar_width, health_bar_height))
         pygame.draw.rect(screen, health_bar_color, (draw_x, draw_y, health_bar_width * health_ratio, health_bar_height))
+        # ...health bar drawing only, no level drawing here...
     
     def dispose(self):
         """Clean up resources and reset entity state."""

@@ -17,7 +17,7 @@ def main():
     # game_engine.map_engine.save_map("test_map.txt")
     game_engine.map_engine.load_map("test_map.txt")
 
-    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ITEM, size=statics.COIN_SIZE)
+    game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ITEM, size=statics.COIN_SIZE, health=0)
 
     game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ENEMY, size=statics.ENEMY_SIZE, health=100)
 

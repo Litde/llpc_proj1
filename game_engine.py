@@ -63,16 +63,30 @@ class GameLogic:
         self.game_engine = game_engine
         self.entities = []
 
+    def __calculate_level_based_on_player_distance(self, entity_position: tuple[int, int]) -> int:
+        player_pos = self.game_engine.player.get_position()
+        entity_pos = entity_position
+
+        # Calculate the distance between the player and the entity
+        distance = ((player_pos[0] - entity_pos[0]) ** 2 + (player_pos[1] - entity_pos[1]) ** 2) ** 0.5
+        if distance < 100:
+            return 1
+        elif distance < 200:
+            return 2
+        else:
+            return 3
+
     def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
         """Creates a new entity with the given parameters."""
         if entity_type == EntityType.ENEMY:
-            # Create Enemy instance for proper AI behavior
-            entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size)
-            entity.health = health  # Set custom health if provided
+            level = self.__calculate_level_based_on_player_distance(starting_pos)
+            entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size, level=level, health=health)
+            entity.health = health
+
         else:
             # Create generic Entity for other types
             entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
-        
+
         self.entities.append(entity)
         return entity
 
@@ -139,6 +153,16 @@ class GameLogic:
                     player.inventory.append(coin)
                     coin.dispose()
 
+    def add_experience_to_player(self, exp: int):
+        if self.game_engine.player.level+1 in self.game_engine.player.required_exp:
+            required_exp = self.game_engine.player.required_exp[self.game_engine.player.level+1]
+            if self.game_engine.player.experience + exp >= required_exp:
+                rest = self.game_engine.player.experience + exp - required_exp
+                self.game_engine.player.level_up()
+                self.game_engine.player.experience = rest
+            else:
+                self.game_engine.player.experience += exp
+
     def deal_damage(self, player, attack_direction, attack_timer, damaged_entities_this_attack, damage=statics.ATTACK_DAMAGE):
         """Deals damage to entities in the attack area based on attack direction."""
         if player.is_disposed() or attack_timer <= 0:
@@ -192,8 +216,8 @@ class GameLogic:
         for entity in self.entities:
             if (not entity.is_disposed() and 
                 entity.entity_type != EntityType.PLAYER and 
-                entity.entity_type != EntityType.ITEM and  # Don't attack items/coins
-                entity not in damaged_entities_this_attack):  # Only damage each entity once per attack
+                entity.entity_type != EntityType.ITEM and
+                entity not in damaged_entities_this_attack):
                 
                 # Create entity rectangle centered on entity position
                 entity_rect = pygame.Rect(
@@ -209,7 +233,10 @@ class GameLogic:
                     damaged_entities_this_attack.add(entity)
                     entity.health -= damage
                     if entity.health <= 0:
+                        if entity.entity_type == EntityType.ENEMY:
+                            self.add_experience_to_player(entity.exp_reward)
                         self.dispose_entity(entity)
+                        
 
 
 class MapEngine:
@@ -650,9 +677,28 @@ class Inventory(UI):
         pygame.draw.rect(screen, (50, 50, 50, 180), inventory_rect)
         pygame.draw.rect(screen, (200, 200, 200), inventory_rect, 2)
         
-        # Draw title
+        # Draw title and experience bar/text beside it
         title_text = font.render("Inventory", True, (255, 255, 255))
-        screen.blit(title_text, (self.inventory_x + 5, self.inventory_y + 5))
+        title_x = self.inventory_x + 5
+        title_y = self.inventory_y + 5
+        screen.blit(title_text, (title_x, title_y))
+
+        if hasattr(player, 'experience') and hasattr(player, 'level'):
+            exp = player.experience
+            level = player.level
+            required_exp = player.required_exp.get(level + 1, 100)
+            exp_text = font.render(f"EXP: {exp} / {required_exp}", True, (0, 191, 255))
+            exp_text_x = title_x + title_text.get_width() + 20
+            exp_text_y = title_y
+            screen.blit(exp_text, (exp_text_x, exp_text_y))
+            # Draw small experience bar beside exp text
+            exp_bar_width = 80
+            exp_bar_height = 10
+            exp_bar_x = exp_text_x + exp_text.get_width() + 10
+            exp_bar_y = exp_text_y + (title_text.get_height() - exp_bar_height) // 2
+            exp_ratio = min(exp / required_exp, 1.0)
+            pygame.draw.rect(screen, (40, 40, 40), (exp_bar_x, exp_bar_y, exp_bar_width, exp_bar_height))
+            pygame.draw.rect(screen, (0, 128, 255), (exp_bar_x, exp_bar_y, int(exp_bar_width * exp_ratio), exp_bar_height))
         
         # Draw inventory slots
         slot_y = self.inventory_y + 30
@@ -696,13 +742,20 @@ class Inventory(UI):
 
 class Player(Entity):
     def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player", size=statics.PLAYER_SIZE):
-        # Ensure player starts at the center of the starting tile
         tile_size = statics.TILE_SIZE
         centered_pos = (starting_pos[0] + tile_size // 2, starting_pos[1] + tile_size // 2)
         super().__init__(name=name, starting_pos=centered_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
         self.inventory = Inventory()
-        self.invincibility_timer = 0  # Invincibility timer to prevent immediate damage after reset
+        self.invincibility_timer = 0
+        self.experience = 0
+        self.required_exp = {
+            2: 100,
+            3: 200,
+            4: 300,
+            5: 500,
+            6: 800,
+        }
 
     def update(self):
         """Update the player state, including invincibility timer."""
@@ -713,47 +766,58 @@ class Player(Entity):
         """Moves the player by dx and dy."""
         tile_size = statics.TILE_SIZE
         
-        # Calculate new position
         new_x = self.x + dx
         new_y = self.y + dy
 
-        # Check map boundaries (considering player is positioned at tile centers)
         if new_x - tile_size // 2 < 0 or new_x + tile_size // 2 >= statics.MAP_WIDTH * tile_size:
             return
         if new_y - tile_size // 2 < 0 or new_y + tile_size // 2 >= statics.MAP_HEIGHT * tile_size:
             return
 
         if self.game_engine.map_engine.map_data:
-            # Calculate which tile the player center would be in
             tile_x = new_x // tile_size
             tile_y = new_y // tile_size
 
             if 0 <= tile_x < len(self.game_engine.map_engine.map_data[0]) and 0 <= tile_y < len(self.game_engine.map_engine.map_data):
                 tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
-                if tile_type == 1:  # water
+                if tile_type == 1:
                     return
 
         self.x = new_x
         self.y = new_y
 
+    def level_up(self):
+        """Levels up the player and increases health."""
+        self.level += 1
+        self.health += 20
+
     def reset(self):
         """Resets the player position and health."""
         tile_size = statics.TILE_SIZE
-        # Position player at the center of the starting tile
         self.x = statics.PLAYER_STARTING_POSITION[0] + tile_size // 2
         self.y = statics.PLAYER_STARTING_POSITION[1] + tile_size // 2
         self.health = 100
         self.inventory = Inventory()
-        self.entity_type = EntityType.PLAYER  # Ensure entity type is set correctly
-        self.invincibility_timer = 60  # 1 second of invincibility at 60 FPS
+        self.entity_type = EntityType.PLAYER  
+        self.invincibility_timer = 60  
+        self.experience = 0
+        self.required_exp = {
+            2: 100,
+            3: 200,
+            4: 300,
+            5: 500,
+            6: 800,
+        }
+        self.level = 1
 
 
 class Enemy(Entity):
-    def __init__(self, game_engine: GameEngine, starting_pos=statics.ENEMY_STARTING_POSITION, name="Enemy", size=statics.ENEMY_SIZE):
-        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.ENEMY, size=size)
+    def __init__(self, game_engine: GameEngine, starting_pos=statics.ENEMY_STARTING_POSITION, name="Enemy", size=statics.ENEMY_SIZE, level: int=1, health: int=100):
+        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.ENEMY, size=size, health=health, level=level)
         self.game_engine = game_engine
-        self.speed = statics.ENEMY_SPEED  # Speed of the enemy movement
-        self.damage_cooldown = 0  # Cooldown timer for dealing damage
+        self.speed = statics.ENEMY_SPEED 
+        self.damage_cooldown = 0
+        self.exp_reward = level * 10
 
     def update(self):
         """Updates the enemy's behavior."""
@@ -762,52 +826,42 @@ class Enemy(Entity):
         if self.is_disposed():
             return
         
-        # Update damage cooldown timer
         if self.damage_cooldown > 0:
             self.damage_cooldown -= 1
         
-        # Simple AI: move towards the player if within a certain distance
         player = self.game_engine.player
         if player.is_disposed():
             return
         
-        # Calculate distance to player
         dx = player.x - self.x
         dy = player.y - self.y
         distance = (dx**2 + dy**2)**0.5
 
         if distance < statics.ENEMY_AGGRO_RADIUS and distance > 0:
-            # Normalize direction vector
             dx_normalized = dx / distance
             dy_normalized = dy / distance
             
-            # Calculate new position
             new_x = self.x + dx_normalized * self.speed
             new_y = self.y + dy_normalized * self.speed
             
-            # Check map boundaries
             tile_size = statics.TILE_SIZE
             if (new_x - self.size // 2 >= 0 and 
                 new_x + self.size // 2 < len(self.game_engine.map_engine.map_data[0]) * tile_size and
                 new_y - self.size // 2 >= 0 and 
                 new_y + self.size // 2 < len(self.game_engine.map_engine.map_data) * tile_size):
                 
-                # Check for water collision
                 tile_x = int(new_x // tile_size)
                 tile_y = int(new_y // tile_size)
                 
                 if (0 <= tile_x < len(self.game_engine.map_engine.map_data[0]) and 
                     0 <= tile_y < len(self.game_engine.map_engine.map_data)):
                     tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
-                    if tile_type != 1:  # Not water
-                        # Update position
+                    if tile_type != 1:
                         self.x = new_x
                         self.y = new_y
             
-            # Check for collision with player (only deal damage if cooldown is 0 and player is not invincible)
             if distance < self.size and self.damage_cooldown <= 0 and player.invincibility_timer <= 0:
-                player.health -= statics.ENEMY_DAMAGE
-                # Set damage cooldown to prevent continuous damage
+                player.health -= statics.ENEMY_DAMAGE * self.level
                 self.damage_cooldown = statics.ATTACK_DURATION_FRAMES
                 if player.health <= 0:
                     player.dispose()

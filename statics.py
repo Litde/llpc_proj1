@@ -1,3 +1,6 @@
+import pygame
+
+
 MAPS_ROOT = "maps"
 TEXTURES_ROOT = "textures"
 TILE_SIZE = 32
@@ -24,6 +27,9 @@ MAP_HEIGHT = 1080
 
 COLOR_WHITE = (255, 255, 255)
 COLOR_BLACK = (0, 0, 0)
+
+FONT_NAME = "freesansbold.ttf"
+FONT_SIZE = 16
 
 
 TILE_VALUES = {
