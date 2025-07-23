@@ -1,10 +1,10 @@
+from dataclasses import dataclass
 import random
-
 from typing import List, Optional
 import statics
 import pygame
 import pygame, os
-from interfaces import AttackDirection, EntityType, Entity, UI
+from interfaces import AttackDirection, EntityType,WeaponType, Entity, UI
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
@@ -18,11 +18,13 @@ class GameEngine:
         self.player = Player(self)
         self.camera = Camera(display_camera_location=display_camera_location)
         self.map_engine = MapEngine(self)
+        self.weapons_list: set[Weapon] = set()
         self.is_map_editor = is_map_editor
         self.initialized = False
+
         
         pygame.init()
-        pygame.display.set_caption("Game Engine Example")
+        pygame.display.set_caption("LLPC Project 1")
         
         self.initialize()
 
@@ -765,6 +767,7 @@ class Player(Entity):
             5: 500,
             6: 800,
         }
+        self.weapon_type: Optional[Weapon] = None
 
     def update(self):
         """Update the player state, including invincibility timer."""
@@ -874,6 +877,26 @@ class Enemy(Entity):
                 self.damage_cooldown = statics.ATTACK_DURATION_FRAMES
                 if player.health <= 0:
                     player.dispose()
+
+
+@dataclass
+class AttackPattern:
+    pattern_type: str
+    pattern_data: list[tuple[int, int]]  # List of (dx, dy) tuples for attack pattern
+
+
+@dataclass
+class Weapon:
+    name: str
+    weapon_type: WeaponType
+    damage: int
+    attack_pattern: AttackPattern
+    attack_speed: int
+    attack_duration: int = statics.ATTACK_DURATION_FRAMES
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.weapon_type, self.damage, self.attack_pattern, self.attack_speed, self.attack_duration))
+
 
 class Camera:
     def __init__(self, display_camera_location=False):

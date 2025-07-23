@@ -1,6 +1,6 @@
 import pygame
 import statics
-from game_engine import GameEngine
+from game_engine import GameEngine, Weapon, WeaponType, AttackPattern
 from interfaces import EntityType, AttackDirection
 
 
@@ -22,6 +22,36 @@ def main():
     game_engine.game_logic.populate_entities(num_entities=1000, entity_type=EntityType.ENEMY, size=statics.ENEMY_SIZE, health=100)
 
     game_engine.game_logic.populate_entities(num_entities=100, entity_type=EntityType.HEALTH, size=statics.ENEMY_SIZE)
+
+    attack_pattern_pike = AttackPattern(
+        pattern_type="Pike",
+        pattern_data=[
+            (0, 1), (1, 1), (2, 1)
+        ]
+    )
+
+    attack_pattern_sword = AttackPattern(
+        pattern_type="Sword",
+        pattern_data=[
+            (0, 1), (1, 0), (1, 1), (1, 2)
+        ]
+    )
+
+    attack_pattern_hammer = AttackPattern(
+        pattern_type="Hammer",
+        pattern_data=[
+            (0, 1), (1, 1), (2, 1), (1, 0), (1, 2)
+        ]
+    )
+
+    sword = Weapon(
+        name="Hammer",
+        weapon_type=WeaponType.HAMMER,
+        damage=20,
+        attack_pattern=attack_pattern_hammer,
+        attack_duration=statics.ATTACK_DURATION_FRAMES,
+        attack_speed=1,
+    )
 
 
     # game_engine.map_engine.print_map()

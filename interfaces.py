@@ -1,21 +1,26 @@
-import enum
+from enum import Enum
 import pygame
 import statics
 
 
-class AttackDirection(enum.Enum):
+class AttackDirection(Enum):
     UP = 1
     DOWN = 2
     LEFT = 3
     RIGHT = 4
     NONE = 5
 
-class EntityType(enum.Enum):
+class EntityType(Enum):
     PLAYER = 1
     ENEMY = 2
     ITEM = 3
     NPC = 4
     HEALTH = 5
+
+class WeaponType(Enum):
+    SWORD = 1
+    HAMMER = 2
+    PIKE = 3
 
 
 
