@@ -168,6 +168,8 @@ class GameLogic:
         if player.is_disposed() or attack_timer <= 0:
             return
         
+        damage_out = damage * player.level
+        
         # Calculate player position (centered in tile)
         tile_size = statics.TILE_SIZE
         player_tile_x = player.x // tile_size
