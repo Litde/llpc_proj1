@@ -44,13 +44,22 @@ def main():
         ]
     )
 
-    sword = Weapon(
+    hammer = Weapon(
         name="Hammer",
         weapon_type=WeaponType.HAMMER,
         damage=20,
         attack_pattern=attack_pattern_hammer,
         attack_duration=statics.ATTACK_DURATION_FRAMES,
         attack_speed=1,
+    )
+
+    pike = Weapon(
+        name="Pike",
+        weapon_type=WeaponType.PIKE,
+        damage=10,
+        attack_pattern=attack_pattern_pike,
+        attack_duration=statics.ATTACK_DURATION_FRAMES,
+        attack_speed=2,
     )
 
 
