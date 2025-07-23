@@ -1,4 +1,6 @@
 import random
+
+from typing import List, Optional
 import statics
 import pygame
 import pygame, os
@@ -61,20 +63,16 @@ class GameLogic:
         self.game_engine = game_engine
         self.entities = []
 
-    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC,
-                      starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 0):
+    def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
         """Creates a new entity with the given parameters."""
         if entity_type == EntityType.ENEMY:
             # Create Enemy instance for proper AI behavior
             entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size)
             entity.health = health  # Set custom health if provided
-        elif entity_type == EntityType.HEALTH:
-            # Create Health entity
-            entity = Health(name=name, starting_pos=starting_pos, size=size)
         else:
             # Create generic Entity for other types
             entity = Entity(name=name, entity_type=entity_type, starting_pos=starting_pos, size=size, health=health)
-
+        
         self.entities.append(entity)
         return entity
 
@@ -82,7 +80,7 @@ class GameLogic:
         """Extends the game with entities."""
         self.entities.extend(entities)
 
-    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 0):
+    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 100):
         """Populates the game with a specified number of entities."""
         # Use actual map dimensions instead of static constants
         if self.game_engine.map_engine.map_data:
@@ -94,6 +92,9 @@ class GameLogic:
             # Fallback to static constants if no map is loaded
             map_width_pixels = statics.MAP_WIDTH
             map_height_pixels = statics.MAP_HEIGHT
+
+        tile_x = map_width_pixels // statics.TILE_SIZE
+        tile_y = map_height_pixels // statics.TILE_SIZE
         
         for i in range(num_entities):
             # Generate random tile coordinates
@@ -113,7 +114,6 @@ class GameLogic:
                              starting_pos=(center_x, center_y), 
                              size=size,
                              health=health)
-
 
     def reset(self):
         self.clock = pygame.time.Clock()
@@ -138,21 +138,6 @@ class GameLogic:
                     self.entities.remove(coin)
                     player.inventory.append(coin)
                     coin.dispose()
-
-    def pickup_health(self, player):
-        """Handles picking up a health entity."""
-        for health in self.entities[:]:  # Create copy to avoid modification during iteration
-            if not health.is_disposed() and health.entity_type == EntityType.HEALTH:
-                if player.check_collision(health):
-                    if isinstance(health, Health):
-                        health.use(player)
-                    else:
-                        # Fallback for generic Entity with HEALTH type
-                        player.health += 20
-                        if player.health > 100:
-                            player.health = 100
-                        self.dispose_entity(health)
-
 
     def deal_damage(self, player, attack_direction, attack_timer, damaged_entities_this_attack, damage=statics.ATTACK_DAMAGE):
         """Deals damage to entities in the attack area based on attack direction."""
@@ -228,8 +213,8 @@ class GameLogic:
 
 
 class MapEngine:
-    def __init__(self, game_engine: GameEngine, map_path:str=None):
-        self.map_data = self.load_map(map_path) if map_path else None
+    def __init__(self, game_engine: GameEngine, map_path:Optional[str] = None):
+        self.map_data: Optional[List[List[int]]] = None
         self.seed = None
         self.screen = None
         self.game_engine = game_engine
@@ -315,7 +300,7 @@ class MapEngine:
         return self.generate_seeded_map(seed=None, width=width, height=height)
     
     def generate_map_in_proportions_of_screen(self):
-        if not self.initialized:
+        if not self.initialized or not self.screen:
             raise RuntimeError("Screen not initialized. Call initialize() first.")
 
         screen_width, screen_height = self.screen.get_size()
@@ -327,11 +312,16 @@ class MapEngine:
         return self.generate_seeded_map(seed=None, width=width, height=height)
 
     def save_map(self, name="random_map") -> None:
+        if self.map_data is None:
+            raise ValueError("No map data available to save.")
         with open(f"{statics.MAPS_ROOT}/{name}", 'w') as f:
             for row in self.map_data:
-                f.write(' '.join(str(tile) for tile in row) + '\n')
+                if isinstance(row, int):
+                    f.write(str(row) + '\n')
+                else:
+                    f.write(' '.join(str(tile) for tile in row) + '\n')
 
-    def load_map(self, map_path: str):
+    def load_map(self, map_path: str) -> tuple[int, int]:
         """Loads a map from a specified file path."""
         self.map_data = []
         try:
@@ -346,7 +336,7 @@ class MapEngine:
         
         return len(self.map_data[0]) if self.map_data else 0, len(self.map_data) if self.map_data else 0
     
-    def change_tile(self, tile_x: int, tile_y: int, new_tile_type: str):
+    def change_tile(self, tile_x: int, tile_y: int, new_tile_type: int):
         """
         Change the tile at the specified coordinates to a new tile type.
         """
@@ -358,7 +348,7 @@ class MapEngine:
         
         # Convert new_tile_type to integer
         try:
-            new_tile_type = int(new_tile_type)
+            new_tile_type = new_tile_type
         except ValueError:
             raise ValueError("Invalid tile type. Must be an integer.")
 
@@ -368,20 +358,18 @@ class MapEngine:
         """
         Check if a tile at the specified coordinates is occupied by an entity.
         """
-        if not self.game_engine or not self.game_engine.game_logic:
+        if not self.game_engine or not self.game_engine.game_logic or self.map_data is None:
             return False
-
-        is_water = self.map_data[tile_y][tile_x] == list(statics.TILE_VALUES.keys())[1]
 
         for entity in self.game_engine.game_logic.entities:
             if (entity.x // statics.TILE_SIZE == tile_x and 
                 entity.y // statics.TILE_SIZE == tile_y and 
-                not entity.is_disposed()) or is_water:
+                not entity.is_disposed()) and self.map_data[tile_y][tile_x] == statics.TILE_VALUES[1]:
                 return True
         return False
 
     def draw_map(self):
-        if self.map_data is None:
+        if self.map_data is None or not self.screen:
             raise ValueError("No map data available to display.")
 
         tile_colors = {
@@ -451,6 +439,8 @@ class MapEngine:
 
     def draw_camera(self):
         """Draws the camera view on the map."""
+        if self.screen is None:
+            return
         if self.game_engine.initialized and self.game_engine.camera.display_camera_location:
             camera_color = (255, 255, 0)
             # Draw camera border around the screen edges to show the viewport
@@ -459,6 +449,9 @@ class MapEngine:
 
     def draw_game_starting_position(self):
         """Draws the game starting position on the map."""
+        if self.screen is None:
+            return
+        
         if self.game_engine.initialized and self.game_engine.player:
             starting_color = (255, 255, 0)
             tile_size = statics.TILE_SIZE
@@ -485,6 +478,9 @@ class MapEngine:
 
     def draw_attack(self, attack_direction):
         """Draws the attack area around the player."""
+        if self.screen is None:
+            return
+        
         if self.game_engine.initialized and self.game_engine.player:
             attack_color = statics.ATTACK_COLOR
             attack_range = statics.PLAYER_ATTACK_RADIUS
@@ -542,9 +538,9 @@ class MapEngine:
             if not entity.is_disposed() and isinstance(entity, Enemy):
                 entity.update()
 
-    def update(self, attack_direction: AttackDirection = None):
+    def update(self, attack_direction: AttackDirection = AttackDirection.NONE):
         """Updates the map engine state."""
-        if not self.initialized:
+        if not self.initialized or self.screen is None:
             raise RuntimeError("Game engine not initialized.")
 
         # Handle attack input and timer
@@ -580,7 +576,6 @@ class MapEngine:
             self.attack_timer, 
             self.damaged_entities_this_attack
         )
-        self.game_engine.game_logic.pickup_health(self.game_engine.player)
         self.draw_entities_health_bars()
 
         self.draw_camera()
@@ -635,7 +630,7 @@ class Inventory(UI):
         if item in self.items:
             self.items.remove(item)
 
-    def draw(self, screen, player):
+    def draw(self, screen, player=None):
         """Draw the player's inventory on screen."""
         if not self.show_inventory or not player or not hasattr(player, 'inventory'):
             return
@@ -737,6 +732,7 @@ class Player(Entity):
                 tile_type = self.game_engine.map_engine.map_data[tile_y][tile_x]
                 if tile_type == 1:  # water
                     return
+
         self.x = new_x
         self.y = new_y
 
@@ -761,6 +757,8 @@ class Enemy(Entity):
 
     def update(self):
         """Updates the enemy's behavior."""
+        if not self.game_engine or not self.game_engine.game_logic or not self.game_engine.map_engine or not self.game_engine.map_engine.map_data:
+            return
         if self.is_disposed():
             return
         
@@ -786,7 +784,7 @@ class Enemy(Entity):
             # Calculate new position
             new_x = self.x + dx_normalized * self.speed
             new_y = self.y + dy_normalized * self.speed
-
+            
             # Check map boundaries
             tile_size = statics.TILE_SIZE
             if (new_x - self.size // 2 >= 0 and 
@@ -813,20 +811,6 @@ class Enemy(Entity):
                 self.damage_cooldown = statics.ATTACK_DURATION_FRAMES
                 if player.health <= 0:
                     player.dispose()
-
-
-class Health(Entity):
-    def __init__(self, starting_pos=statics.PLAYER_STARTING_POSITION, name="Health", size=statics.PLAYER_SIZE):
-        super().__init__(name=name, starting_pos=starting_pos, entity_type=EntityType.HEALTH, size=size, health=0)
-        self.heal_amount = 20  # Amount of health restored when used
-
-    def use(self, player):
-        """Restores health to the player."""
-        if not self.is_disposed() and player.health < 100:
-            player.health += self.heal_amount
-            if player.health > 100:
-                player.health = 100
-            self.dispose()  # Properly dispose using game logic
 
 class Camera:
     def __init__(self, display_camera_location=False):
