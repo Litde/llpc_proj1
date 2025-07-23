@@ -63,18 +63,29 @@ class GameLogic:
         self.game_engine = game_engine
         self.entities = []
 
-    def __calculate_level_based_on_player_distance(self, entity_position: tuple[int, int]) -> int:
+    def __calculate_level_based_on_player_distance(self, entity_position: tuple[int, int], num_levels: int = 6) -> int:
         player_pos = self.game_engine.player.get_position()
         entity_pos = entity_position
 
-        # Calculate the distance between the player and the entity
+        # Calculate Euclidean distance between player and entity
         distance = ((player_pos[0] - entity_pos[0]) ** 2 + (player_pos[1] - entity_pos[1]) ** 2) ** 0.5
-        if distance < 100:
-            return 1
-        elif distance < 200:
-            return 2
+
+        # Universal scaling: map max distance to levels
+        # Estimate max possible distance based on map size
+        map_engine = self.game_engine.map_engine
+        if map_engine.map_data:
+            map_width = len(map_engine.map_data[0]) * statics.TILE_SIZE
+            map_height = len(map_engine.map_data) * statics.TILE_SIZE
         else:
-            return 3
+            map_width = statics.MAP_WIDTH
+            map_height = statics.MAP_HEIGHT
+        max_distance = ((map_width) ** 2 + (map_height) ** 2) ** 0.5
+
+        # Clamp distance to [0, max_distance]
+        distance = max(0, min(distance, max_distance))
+        # Calculate level: 1 (closest) to num_levels (farthest)
+        level = int((distance / max_distance) * (num_levels - 1)) + 1
+        return level
 
     def create_entity(self, name: str = "Entity", entity_type: EntityType = EntityType.NPC, starting_pos: tuple = (0, 0), size: int = statics.TILE_SIZE, health: int = 100):
         """Creates a new entity with the given parameters."""
@@ -214,14 +225,12 @@ class GameLogic:
         if attack_rect is None:
             return
         
-        # Check collision with entities in the attack area
         for entity in self.entities:
             if (not entity.is_disposed() and 
                 entity.entity_type != EntityType.PLAYER and 
                 entity.entity_type != EntityType.ITEM and
                 entity not in damaged_entities_this_attack):
                 
-                # Create entity rectangle centered on entity position
                 entity_rect = pygame.Rect(
                     entity.x - entity.size // 2,
                     entity.y - entity.size // 2,
@@ -229,11 +238,9 @@ class GameLogic:
                     entity.size
                 )
                 
-                # Check if attack area intersects with entity
                 if attack_rect.colliderect(entity_rect):
-                    # Mark this entity as damaged in this attack
                     damaged_entities_this_attack.add(entity)
-                    entity.health -= damage
+                    entity.health -= damage_out
                     if entity.health <= 0:
                         if entity.entity_type == EntityType.ENEMY:
                             self.add_experience_to_player(entity.exp_reward)
