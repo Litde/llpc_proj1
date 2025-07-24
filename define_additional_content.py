@@ -14,7 +14,7 @@ def main(game_engine: GameEngine):
     attack_pattern_sword = AttackPattern(
         pattern_type="Sword",
         pattern_data=[
-            (0, 1), (0, 2)
+            (0, 1), (0, 2), (-1, 1), (1, 1)
         ]
     )
 

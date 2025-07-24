@@ -648,6 +648,27 @@ class MapEngine:
             print("No map data available to print.")
 
 
+@dataclass
+class AttackPattern:
+    pattern_type: str
+    pattern_data: list[tuple[int, int]]  
+
+@dataclass
+class Weapon:
+    name: str
+    weapon_type: WeaponType
+    damage: int
+    attack_pattern: AttackPattern
+    attack_cooldown: int
+    attack_duration: int = statics.ATTACK_DURATION_FRAMES
+    attack_timer: int = 0
+    cooldown_timer: int = 0
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.weapon_type, self.damage, self.attack_pattern, self.attack_cooldown, self.attack_duration))
+    
+
+
 class Inventory(UI):
     def __init__(self):
         super().__init__()
@@ -682,12 +703,13 @@ class Inventory(UI):
         inventory_items = player.inventory.items if hasattr(player.inventory, 'items') else player.inventory
         
         # Initialize font
-        font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(statics.FONT_NAME, statics.FONT_SIZE)
         
-        # Draw inventory background
-        inventory_width = (self.slot_size + self.slot_padding) * 10 + self.slot_padding
-        inventory_height = self.slot_size + 2 * self.slot_padding + 30  # Extra space for title
-        
+        # Draw inventory background (slightly longer for text fit)
+        slot_count = 8
+        inventory_width = (self.slot_size + self.slot_padding) * slot_count + self.slot_padding + 75  # 8 slots + weapon icon + extra for text
+        inventory_height = self.slot_size + 2 * self.slot_padding + 28  # Slightly more height for text
+
         # Background rectangle
         inventory_rect = pygame.Rect(self.inventory_x, self.inventory_y, inventory_width, inventory_height)
         pygame.draw.rect(screen, (50, 50, 50, 180), inventory_rect)
@@ -716,16 +738,14 @@ class Inventory(UI):
             pygame.draw.rect(screen, (40, 40, 40), (exp_bar_x, exp_bar_y, exp_bar_width, exp_bar_height))
             pygame.draw.rect(screen, (0, 128, 255), (exp_bar_x, exp_bar_y, int(exp_bar_width * exp_ratio), exp_bar_height))
         
-        # Draw inventory slots
+        # Draw inventory slots (now 12 slots for more space)
         slot_y = self.inventory_y + 30
-        for i in range(10):  # Display up to 10 inventory slots
+        for i in range(slot_count):  # Display up to 8 inventory slots
             slot_x = self.inventory_x + self.slot_padding + i * (self.slot_size + self.slot_padding)
-            
             # Draw slot background
             slot_rect = pygame.Rect(slot_x, slot_y, self.slot_size, self.slot_size)
             pygame.draw.rect(screen, (80, 80, 80), slot_rect)
             pygame.draw.rect(screen, (150, 150, 150), slot_rect, 1)
-            
             # Draw item if it exists
             if i < len(inventory_items):
                 item = inventory_items[i]
@@ -736,13 +756,27 @@ class Inventory(UI):
                     item_x = slot_x + 4
                     item_y = slot_y + 4
                     pygame.draw.rect(screen, item_color, (item_x, item_y, item_size, item_size))
-                    
                     # Draw item count or type indicator
                     if hasattr(item, 'name') and item.name:
                         # Show first letter of item name
                         text = font.render(item.name[0].upper(), True, (0, 0, 0))
                         text_rect = text.get_rect(center=(slot_x + self.slot_size // 2, slot_y + self.slot_size // 2))
                         screen.blit(text, text_rect)
+
+        # Draw weapon texture (if player has a weapon)
+        weapon = getattr(player, 'weapon', None)
+        if weapon and hasattr(weapon, 'weapon_type'):
+            import os
+            weapon_texture_path = os.path.join('textures', 'weapons', f'{weapon.weapon_type.name.lower()}.png')
+            try:
+                weapon_image = pygame.image.load(weapon_texture_path).convert_alpha()
+                weapon_image = pygame.transform.smoothscale(weapon_image, (32, 32))
+                # Place icon right after last slot
+                texture_x = self.inventory_x + self.slot_padding + slot_count * (self.slot_size + self.slot_padding)
+                texture_y = slot_y + (self.slot_size - 32) // 2
+                screen.blit(weapon_image, (texture_x, texture_y))
+            except Exception:
+                pass
         
         # Draw items count and coins count beside each other, top right
         items_count = len(inventory_items)
@@ -761,26 +795,7 @@ class Inventory(UI):
         # Update inventory items
         for item in self.items:
             item.update()
-            
-
-@dataclass
-class AttackPattern:
-    pattern_type: str
-    pattern_data: list[tuple[int, int]]  
-
-@dataclass
-class Weapon:
-    name: str
-    weapon_type: WeaponType
-    damage: int
-    attack_pattern: AttackPattern
-    attack_cooldown: int
-    attack_duration: int = statics.ATTACK_DURATION_FRAMES
-    attack_timer: int = 0
-    cooldown_timer: int = 0
-
-    def __hash__(self) -> int:
-        return hash((self.name, self.weapon_type, self.damage, self.attack_pattern, self.attack_cooldown, self.attack_duration))
+        
 
 
 
