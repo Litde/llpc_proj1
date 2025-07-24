@@ -165,13 +165,12 @@ class GameLogic:
                 if entity.entity_type == EntityType.ITEM:
                     if player.check_collision(entity):
                         self.entities.remove(entity)
-                        player.inventory.append(entity)
+                        player.coins += 1
                         entity.dispose()
                 elif entity.entity_type == EntityType.HEALTH:
                     if player.check_collision(entity):
                         self.entities.remove(entity)
-                        # Heal the player (amount can be set as entity.health or a constant)
-                        player.health = min(player.health + 20, 100)  # Example: heal 20, max 100
+                        player.health = min(player.health + 20, 100)
                         entity.dispose()
 
     def add_experience_to_player(self, exp: int):
@@ -745,9 +744,17 @@ class Inventory(UI):
                         text_rect = text.get_rect(center=(slot_x + self.slot_size // 2, slot_y + self.slot_size // 2))
                         screen.blit(text, text_rect)
         
-        # Draw inventory count
-        count_text = font.render(f"Items: {len(inventory_items)}", True, (255, 255, 255))
-        screen.blit(count_text, (self.inventory_x + inventory_width - 100, self.inventory_y + 5))
+        # Draw items count and coins count beside each other, top right
+        items_count = len(inventory_items)
+        coins_count = getattr(player, 'coins', 0)
+        count_text = font.render(f"Items: {items_count}", True, (255, 255, 255))
+        coin_text = font.render(f"Coins: {coins_count}", True, (255, 223, 0))
+        # Calculate widths for proper alignment
+        total_width = count_text.get_width() + 12 + coin_text.get_width()
+        start_x = self.inventory_x + inventory_width - total_width - 10
+        y = self.inventory_y + 5
+        screen.blit(count_text, (start_x, y))
+        screen.blit(coin_text, (start_x + count_text.get_width() + 12, y))
 
     def update(self):
         super().update()
@@ -759,7 +766,7 @@ class Inventory(UI):
 @dataclass
 class AttackPattern:
     pattern_type: str
-    pattern_data: list[tuple[int, int]]  # List of (dx, dy) tuples for attack pattern
+    pattern_data: list[tuple[int, int]]  
 
 @dataclass
 class Weapon:
@@ -784,6 +791,7 @@ class Player(Entity):
         super().__init__(name=name, starting_pos=centered_pos, entity_type=EntityType.PLAYER, size=size)
         self.game_engine = game_engine
         self.inventory = Inventory()
+        self.coins = 0
         self.invincibility_timer = 0
         self.experience = 0
         self.required_exp = {
