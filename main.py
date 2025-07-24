@@ -73,6 +73,8 @@ def main():
                     game_engine.reset_player()
                 elif event.key == pygame.K_i:
                     game_engine.player.inventory.toggle_inventory()
+                elif event.key == pygame.K_w:
+                    game_engine.game_logic.change_weapon()
 
         game_engine.map_engine.update(attack_direction=attack)
 

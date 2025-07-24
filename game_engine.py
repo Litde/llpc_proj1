@@ -243,7 +243,19 @@ class GameLogic:
                             if entity.entity_type == EntityType.ENEMY:
                                 self.add_experience_to_player(entity.exp_reward)
                             self.dispose_entity(entity)
-                        
+
+    def change_weapon(self):
+        """Cycle to the next weapon in the weapons_list dictionary."""
+        weapons = list(self.game_engine.weapons_list.values())
+        if not weapons:
+            return
+        current_weapon = self.game_engine.player.weapon
+        if current_weapon and current_weapon in weapons:
+            current_index = weapons.index(current_weapon)
+            new_index = (current_index + 1) % len(weapons)
+            self.game_engine.player.weapon = weapons[new_index]
+        else:
+            self.game_engine.player.weapon = weapons[0]
 
 
 class MapEngine:
