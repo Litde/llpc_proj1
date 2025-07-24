@@ -18,7 +18,7 @@ class GameEngine:
         self.player = Player(self)
         self.camera = Camera(display_camera_location=display_camera_location)
         self.map_engine = MapEngine(self)
-        self.weapons_list: set[Weapon] = set()
+        self.weapons_list: dict[WeaponType, Weapon] = {}
         self.is_map_editor = is_map_editor
         self.initialized = False
 
@@ -95,6 +95,7 @@ class GameLogic:
             level = self.__calculate_level_based_on_player_distance(starting_pos)
             entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size, level=level, health=health)
             entity.health = health
+            
 
         else:
             # Create generic Entity for other types
@@ -158,13 +159,20 @@ class GameLogic:
             entity.dispose()
 
     def pickup_coin(self, player):
-        """Handles picking up a coin entity."""
-        for coin in self.entities:
-            if not coin.is_disposed() and coin.entity_type == EntityType.ITEM:
-                if player.check_collision(coin):
-                    self.entities.remove(coin)
-                    player.inventory.append(coin)
-                    coin.dispose()
+        """Handles picking up a coin or healing entity."""
+        for entity in self.entities[:]:
+            if not entity.is_disposed():
+                if entity.entity_type == EntityType.ITEM:
+                    if player.check_collision(entity):
+                        self.entities.remove(entity)
+                        player.inventory.append(entity)
+                        entity.dispose()
+                elif entity.entity_type == EntityType.HEALTH:
+                    if player.check_collision(entity):
+                        self.entities.remove(entity)
+                        # Heal the player (amount can be set as entity.health or a constant)
+                        player.health = min(player.health + 20, 100)  # Example: heal 20, max 100
+                        entity.dispose()
 
     def add_experience_to_player(self, exp: int):
         if self.game_engine.player.level+1 in self.game_engine.player.required_exp:
@@ -177,76 +185,65 @@ class GameLogic:
                 self.game_engine.player.experience += exp
 
     def deal_damage(self, player, attack_direction, attack_timer, damaged_entities_this_attack, damage=statics.ATTACK_DAMAGE):
-        """Deals damage to entities in the attack area based on attack direction."""
+        """Deals damage to entities in the attack area based on the player's weapon's attack pattern. Only damages entities whose center is inside the attack cell."""
         if player.is_disposed() or attack_timer <= 0:
             return
-        
-        damage_out = damage * player.level
-        
-        # Calculate player position (centered in tile)
+
+        weapon = getattr(player, 'weapon', None)
+        if not weapon or not weapon.attack_pattern:
+            return
+
+        damage_out = weapon.damage * player.level if hasattr(weapon, 'damage') else damage * player.level
+
         tile_size = statics.TILE_SIZE
         player_tile_x = player.x // tile_size
         player_tile_y = player.y // tile_size
         player_center_x = player_tile_x * tile_size + tile_size // 2
         player_center_y = player_tile_y * tile_size + tile_size // 2
-        
-        # Define attack area based on direction
-        attack_range = statics.PLAYER_ATTACK_RADIUS
-        attack_thickness = tile_size  # Make attack area tile-width thick
-        attack_rect = None
-        
-        if attack_direction == AttackDirection.UP:
-            attack_rect = pygame.Rect(
-                player_center_x - attack_thickness // 2,
-                player_center_y - attack_range,
-                attack_thickness, 
-                attack_range
+
+        # For each cell in the attack pattern, check for entity center inside attack cell
+        for dx, dy in weapon.attack_pattern.pattern_data:
+            # Rotate pattern based on attack_direction (same as draw_attack)
+            if attack_direction == AttackDirection.UP:
+                rel_dx, rel_dy = dx, -dy
+            elif attack_direction == AttackDirection.DOWN:
+                rel_dx, rel_dy = dx, dy
+            elif attack_direction == AttackDirection.LEFT:
+                rel_dx, rel_dy = -dy, dx
+            elif attack_direction == AttackDirection.RIGHT:
+                rel_dx, rel_dy = dy, -dx
+            else:
+                rel_dx, rel_dy = dx, dy
+
+            # Calculate the center of the attack cell in world coordinates
+            cell_center_x = player_center_x + rel_dx * tile_size
+            cell_center_y = player_center_y + rel_dy * tile_size
+
+            # Create a rect for the attack cell
+            attack_cell_rect = pygame.Rect(
+                cell_center_x - tile_size // 2,
+                cell_center_y - tile_size // 2,
+                tile_size,
+                tile_size
             )
-        elif attack_direction == AttackDirection.DOWN:
-            attack_rect = pygame.Rect(
-                player_center_x - attack_thickness // 2,
-                player_center_y,
-                attack_thickness,
-                attack_range
-            )
-        elif attack_direction == AttackDirection.LEFT:
-            attack_rect = pygame.Rect(
-                player_center_x - attack_range,
-                player_center_y - attack_thickness // 2,
-                attack_range,
-                attack_thickness
-            )
-        elif attack_direction == AttackDirection.RIGHT:
-            attack_rect = pygame.Rect(
-                player_center_x,
-                player_center_y - attack_thickness // 2,
-                attack_range,
-                attack_thickness
-            )
-        
-        if attack_rect is None:
-            return
-        
-        for entity in self.entities:
-            if (not entity.is_disposed() and 
-                entity.entity_type != EntityType.PLAYER and 
-                entity.entity_type != EntityType.ITEM and
-                entity not in damaged_entities_this_attack):
-                
-                entity_rect = pygame.Rect(
-                    entity.x - entity.size // 2,
-                    entity.y - entity.size // 2,
-                    entity.size,
-                    entity.size
-                )
-                
-                if attack_rect.colliderect(entity_rect):
-                    damaged_entities_this_attack.add(entity)
-                    entity.health -= damage_out
-                    if entity.health <= 0:
-                        if entity.entity_type == EntityType.ENEMY:
-                            self.add_experience_to_player(entity.exp_reward)
-                        self.dispose_entity(entity)
+
+            for entity in self.entities:
+                if (not entity.is_disposed() and 
+                    entity.entity_type != EntityType.PLAYER and 
+                    entity.entity_type != EntityType.ITEM and
+                    entity not in damaged_entities_this_attack):
+
+                    # Use entity center for strictness
+                    entity_center_x = entity.x
+                    entity_center_y = entity.y
+
+                    if attack_cell_rect.collidepoint(entity_center_x, entity_center_y):
+                        damaged_entities_this_attack.add(entity)
+                        entity.health -= damage_out
+                        if entity.health <= 0:
+                            if entity.entity_type == EntityType.ENEMY:
+                                self.add_experience_to_player(entity.exp_reward)
+                            self.dispose_entity(entity)
                         
 
 
@@ -515,48 +512,53 @@ class MapEngine:
             pygame.draw.rect(self.screen, starting_color, starting_rect)
 
     def draw_attack(self, attack_direction):
-        """Draws the attack area around the player."""
+        """Draws the attack area for attack_duration frames after an attack is triggered, and only allows a new attack after attack_cooldown reaches 0."""
         if self.screen is None:
             return
-        
+
+        weapon = self.game_engine.player.weapon
+        if not weapon or not weapon.attack_pattern:
+            return
+
+        # Draw attack area if attack_timer > 0 (attack is active)
+        if not hasattr(weapon, 'attack_timer') or weapon.attack_timer <= 0:
+            return
+
         if self.game_engine.initialized and self.game_engine.player:
             attack_color = statics.ATTACK_COLOR
-            attack_range = statics.PLAYER_ATTACK_RADIUS
             tile_size = statics.TILE_SIZE
-            attack_thickness = 8  # Thickness of the attack rectangle
-            
             # Calculate which tile the player is currently in (same as draw_player)
             tile_x = self.game_engine.player.x // tile_size
             tile_y = self.game_engine.player.y // tile_size
-            
             # Calculate the center of that tile in world coordinates
             tile_center_x = tile_x * tile_size + tile_size // 2
             tile_center_y = tile_y * tile_size + tile_size // 2
-            
             # Calculate screen position relative to camera
             screen_center_x = tile_center_x - self.game_engine.camera.x
             screen_center_y = tile_center_y - self.game_engine.camera.y
-            
-            if attack_direction == AttackDirection.UP:
-                pygame.draw.rect(self.screen, attack_color,
-                                 (screen_center_x - attack_thickness // 2,
-                                  screen_center_y - attack_range,
-                                  attack_thickness, attack_range))
-            elif attack_direction == AttackDirection.DOWN:
-                pygame.draw.rect(self.screen, attack_color,
-                                 (screen_center_x - attack_thickness // 2,
-                                  screen_center_y,
-                                  attack_thickness, attack_range))
-            elif attack_direction == AttackDirection.LEFT:
-                pygame.draw.rect(self.screen, attack_color,
-                                 (screen_center_x - attack_range,
-                                  screen_center_y - attack_thickness // 2,
-                                  attack_range, attack_thickness))
-            elif attack_direction == AttackDirection.RIGHT:
-                pygame.draw.rect(self.screen, attack_color,
-                                 (screen_center_x,
-                                  screen_center_y - attack_thickness // 2,
-                                  attack_range, attack_thickness))  
+
+            # Draw each attack cell in the pattern relative to the player
+            for dx, dy in weapon.attack_pattern.pattern_data:
+                # Rotate pattern based on attack_direction
+                if attack_direction == AttackDirection.UP:
+                    rel_dx, rel_dy = dx, -dy
+                elif attack_direction == AttackDirection.DOWN:
+                    rel_dx, rel_dy = dx, dy
+                elif attack_direction == AttackDirection.LEFT:
+                    rel_dx, rel_dy = -dy, dx
+                elif attack_direction == AttackDirection.RIGHT:
+                    rel_dx, rel_dy = dy, -dx
+                else:
+                    rel_dx, rel_dy = dx, dy
+
+                cell_x = screen_center_x + rel_dx * tile_size
+                cell_y = screen_center_y + rel_dy * tile_size
+                pygame.draw.rect(
+                    self.screen,
+                    attack_color,
+                    (cell_x - tile_size // 2, cell_y - tile_size // 2, tile_size, tile_size),
+                    2
+                )
 
     def draw_entities(self):
         """Draws all entities on the map."""
@@ -581,20 +583,22 @@ class MapEngine:
         if not self.initialized or self.screen is None:
             raise RuntimeError("Game engine not initialized.")
 
-        # Handle attack input and timer
-        if attack_direction is not None and attack_direction != AttackDirection.NONE:
-            self.current_attack_direction = attack_direction
-            self.attack_timer = statics.ATTACK_DURATION_FRAMES
-            # Clear the damaged entities set for the new attack
-            self.damaged_entities_this_attack.clear()
-        
-        # Update attack timer
-        if self.attack_timer > 0:
-            self.attack_timer -= 1
-            if self.attack_timer <= 0:
-                self.current_attack_direction = AttackDirection.NONE
-                # Clear damaged entities when attack ends
-                self.damaged_entities_this_attack.clear()
+        weapon = self.game_engine.player.weapon
+        # Handle attack input and timers for weapon
+        if weapon:
+            # Decrement timers
+            if weapon.attack_timer > 0:
+                weapon.attack_timer -= 1
+            if weapon.cooldown_timer > 0:
+                weapon.cooldown_timer -= 1
+
+            # Handle attack input
+            if attack_direction is not None and attack_direction != AttackDirection.NONE:
+                if weapon.cooldown_timer <= 0:
+                    self.current_attack_direction = attack_direction
+                    weapon.attack_timer = weapon.attack_duration
+                    weapon.cooldown_timer = weapon.attack_cooldown
+                    self.damaged_entities_this_attack.clear()
 
         if self.game_engine.player and not self.game_engine.is_map_editor:
             # Center camera on player (player position is already in pixels)
@@ -608,27 +612,29 @@ class MapEngine:
         self.update_enemies()
         self.game_engine.player.update()  # Update player state including invincibility timer
         self.game_engine.game_logic.pickup_coin(self.game_engine.player)
+        # Use weapon's attack_timer for damage
+        attack_timer = weapon.attack_timer if weapon else 0
         self.game_engine.game_logic.deal_damage(
             self.game_engine.player, 
             self.current_attack_direction, 
-            self.attack_timer, 
+            attack_timer, 
             self.damaged_entities_this_attack
         )
         self.draw_entities_health_bars()
 
         self.draw_camera()
-        
-        # Draw attack if timer is active
-        if self.attack_timer > 0:
+
+        # Draw attack if timer is active (use weapon's attack_timer)
+        if weapon and weapon.attack_timer > 0:
             self.draw_attack(self.current_attack_direction)
-        
+
         # Draw UI (inventory, etc.)
         if not self.game_engine.is_map_editor:
             self.game_engine.player.inventory.draw(self.screen, self.game_engine.player)
-        
+
         # Clean up disposed entities
         self.game_engine.game_logic.cleanup_disposed_entities()
-            
+
         pygame.display.flip()
 
 
@@ -750,6 +756,26 @@ class Inventory(UI):
             item.update()
             
 
+@dataclass
+class AttackPattern:
+    pattern_type: str
+    pattern_data: list[tuple[int, int]]  # List of (dx, dy) tuples for attack pattern
+
+@dataclass
+class Weapon:
+    name: str
+    weapon_type: WeaponType
+    damage: int
+    attack_pattern: AttackPattern
+    attack_cooldown: int
+    attack_duration: int = statics.ATTACK_DURATION_FRAMES
+    attack_timer: int = 0
+    cooldown_timer: int = 0
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.weapon_type, self.damage, self.attack_pattern, self.attack_cooldown, self.attack_duration))
+
+
 
 class Player(Entity):
     def __init__(self, game_engine:GameEngine, starting_pos=statics.PLAYER_STARTING_POSITION, name="Player", size=statics.PLAYER_SIZE):
@@ -767,7 +793,13 @@ class Player(Entity):
             5: 500,
             6: 800,
         }
-        self.weapon_type: Optional[Weapon] = None
+        self.weapon: Optional[Weapon] = None
+
+    def add_weapon(self, weapon: Weapon):
+        """Adds a weapon to the player."""
+        if not isinstance(weapon, Weapon):
+            raise TypeError("Expected a Weapon instance.")
+        self.weapon = weapon
 
     def update(self):
         """Update the player state, including invincibility timer."""
@@ -879,23 +911,6 @@ class Enemy(Entity):
                     player.dispose()
 
 
-@dataclass
-class AttackPattern:
-    pattern_type: str
-    pattern_data: list[tuple[int, int]]  # List of (dx, dy) tuples for attack pattern
-
-
-@dataclass
-class Weapon:
-    name: str
-    weapon_type: WeaponType
-    damage: int
-    attack_pattern: AttackPattern
-    attack_speed: int
-    attack_duration: int = statics.ATTACK_DURATION_FRAMES
-
-    def __hash__(self) -> int:
-        return hash((self.name, self.weapon_type, self.damage, self.attack_pattern, self.attack_speed, self.attack_duration))
 
 
 class Camera:
