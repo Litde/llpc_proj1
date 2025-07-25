@@ -2,6 +2,13 @@ from enum import Enum
 import pygame
 import statics
 
+map_tiles_values = {
+    0: "empty",
+    1: "water",
+    2: "floor",
+    3: "grass",
+}
+
 
 class AttackDirection(Enum):
     UP = 1
@@ -13,7 +20,7 @@ class AttackDirection(Enum):
 class EntityType(Enum):
     PLAYER = 1
     ENEMY = 2
-    ITEM = 3
+    COIN = 3
     NPC = 4
     HEALTH = 5
 
@@ -86,7 +93,7 @@ class Entity:
             color = statics.PLAYER_COLOR
         elif self.entity_type == EntityType.ENEMY:
             color = statics.ENEMY_COLOR
-        elif self.entity_type == EntityType.ITEM:
+        elif self.entity_type == EntityType.COIN:
             color = statics.COIN_COLOR
             image = ImageCache.get_image(f'{statics.TEXTURES_ROOT}/coin16x16.png')
         elif self.entity_type == EntityType.NPC:

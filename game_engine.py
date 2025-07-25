@@ -2,8 +2,8 @@ from dataclasses import dataclass
 import random
 from typing import List, Optional
 import statics
-import pygame
 import pygame, os
+from pytmx import load_pygame
 from interfaces import AttackDirection, EntityType,WeaponType, Entity, UI
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
@@ -93,7 +93,7 @@ class GameLogic:
         """Creates a new entity with the given parameters."""
         if entity_type == EntityType.ENEMY:
             level = self.__calculate_level_based_on_player_distance(starting_pos)
-            entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size, level=level, health=health)
+            entity = Enemy(self.game_engine, name=name, starting_pos=starting_pos, size=size, level=level, health=health*level)
             entity.health = health
             
 
@@ -108,7 +108,7 @@ class GameLogic:
         """Extends the game with entities."""
         self.entities.extend(entities)
 
-    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.ITEM, size: int = statics.TILE_SIZE, health: int = 100):
+    def populate_entities(self, num_entities: int = 10, entity_type: EntityType = EntityType.COIN, size: int = statics.TILE_SIZE, health: int = 100):
         """Populates the game with a specified number of entities."""
         # Use actual map dimensions instead of static constants
         if self.game_engine.map_engine.map_data:
@@ -162,7 +162,7 @@ class GameLogic:
         """Handles picking up a coin or healing entity."""
         for entity in self.entities[:]:
             if not entity.is_disposed():
-                if entity.entity_type == EntityType.ITEM:
+                if entity.entity_type == EntityType.COIN:
                     if player.check_collision(entity):
                         self.entities.remove(entity)
                         player.coins += 1
@@ -229,7 +229,7 @@ class GameLogic:
             for entity in self.entities:
                 if (not entity.is_disposed() and 
                     entity.entity_type != EntityType.PLAYER and 
-                    entity.entity_type != EntityType.ITEM and
+                    entity.entity_type != EntityType.COIN and
                     entity not in damaged_entities_this_attack):
 
                     # Use entity center for strictness
@@ -260,6 +260,9 @@ class GameLogic:
 
 class MapEngine:
     def __init__(self, game_engine: GameEngine, map_path:Optional[str] = None):
+        self.tmx_data = None
+        self.height: int = 0
+        self.width: int = 0
         self.map_data: Optional[List[List[int]]] = None
         self.seed = None
         self.screen = None
@@ -293,6 +296,38 @@ class MapEngine:
         self.current_attack_direction = AttackDirection.NONE
         self.damaged_entities_this_attack = set()
 
+
+    def load_tiled_map(self, map_path: str):
+        try:
+            tmx_data = load_pygame(map_path)
+            self.width = tmx_data.width
+            self.height = tmx_data.height
+            # self.tmx_data = [[0] * self.width for _ in range(self.height)]
+            self.tmx_data = tmx_data
+        except Exception as e:
+            raise RuntimeError(f"Error loading Tiled map: {e}")
+
+    def draw_tiled_map(self):
+        if hasattr(self, 'tmx_data') and self.tmx_data:
+            tile_size = statics.TILE_SIZE
+            camera_x = self.game_engine.camera.x
+            camera_y = self.game_engine.camera.y
+            screen_width, screen_height = self.screen.get_size()
+            start_tile_x = camera_x // tile_size
+            start_tile_y = camera_y // tile_size
+            end_tile_x = (camera_x + screen_width) // tile_size + 1
+            end_tile_y = (camera_y + screen_height) // tile_size + 1
+
+            for layer in self.tmx_data.visible_layers:
+                if hasattr(layer, 'tiles'):
+                    for x, y, image in layer.tiles():
+                        if start_tile_x <= x < end_tile_x and start_tile_y <= y < end_tile_y:
+                            screen_x = x * tile_size - camera_x
+                            screen_y = y * tile_size - camera_y
+                            self.screen.blit(image, (screen_x, screen_y))
+        else:
+            self.draw_map()
+            pass
 
     def generate_seeded_map(self, seed=None, width=20, height=20):
         if seed is not None:
@@ -616,7 +651,7 @@ class MapEngine:
             self.game_engine.camera.x = self.game_engine.player.x - self.screen.get_width() // 2
             self.game_engine.camera.y = self.game_engine.player.y - self.screen.get_height() // 2
 
-        self.draw_map()
+        self.draw_tiled_map()
         self.draw_game_starting_position()
         # self.draw_player()
         self.draw_entities()
@@ -763,7 +798,7 @@ class Inventory(UI):
                 item = inventory_items[i]
                 if not item.is_disposed():
                     # Draw item representation (small colored square)
-                    item_color = statics.COIN_COLOR if item.entity_type == EntityType.ITEM else (255, 255, 255)
+                    item_color = statics.COIN_COLOR if item.entity_type == EntityType.COIN else (255, 255, 255)
                     item_size = self.slot_size - 8
                     item_x = slot_x + 4
                     item_y = slot_y + 4

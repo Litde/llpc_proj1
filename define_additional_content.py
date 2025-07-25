@@ -7,21 +7,21 @@ def main(game_engine: GameEngine):
     attack_pattern_pike = AttackPattern(
         pattern_type="Pike",
         pattern_data=[
-            (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)
+            (0,0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)
         ]
     )
 
     attack_pattern_sword = AttackPattern(
         pattern_type="Sword",
         pattern_data=[
-            (0, 1), (0, 2), (-1, 1), (1, 1)
+            (0,0), (0, 1), (0, 2), (-1, 1), (1, 1)
         ]
     )
 
     attack_pattern_hammer = AttackPattern(
         pattern_type="Hammer",
         pattern_data=[
-            (0, 1), (0, 2), (0, 3), (-1, 1), (-1, 2), (-1, 3), (1, 1), (1, 2), (1, 3)
+            (0,0), (0, 1), (0, 2), (0, 3), (-1, 1), (-1, 2), (-1, 3), (1, 1), (1, 2), (1, 3)
         ]
     )
 
